@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net8.0-windows</TargetFramework>
+        <UseWPF>true</UseWPF>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <EnableWindowsTargeting>true</EnableWindowsTargeting>
+        <ApplicationIcon>Assets\appicon.ico</ApplicationIcon>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Resource Include="Assets\appicon.ico" />
+    </ItemGroup>
+
+    <PropertyGroup>
+        <!-- Single-EXE, self-contained WPF build -->
+        <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+        <SelfContained>true</SelfContained>
+        <PublishSingleFile>true</PublishSingleFile>
+
+        <!-- WPF-safe defaults -->
+        <PublishTrimmed>false</PublishTrimmed>
+        <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+        <DebugType>None</DebugType>
+
+        <!-- optional: faster startup, larger exe -->
+        <!-- <PublishReadyToRun>true</PublishReadyToRun> -->
+    </PropertyGroup>
+
+</Project>
