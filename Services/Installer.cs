@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using SharpCompress.Archives;
+using SharpCompress.Common;
 
 namespace ErenshorModInstaller.Wpf.Services
 {
@@ -11,7 +13,6 @@ namespace ErenshorModInstaller.Wpf.Services
         public static string GetBepInExDir(string gameRoot) => Path.Combine(gameRoot, "BepInEx");
         public static string GetPluginsDir(string gameRoot) => Path.Combine(GetBepInExDir(gameRoot), "plugins");
 
-        /// <summary>Throws if BepInEx 5.x doesn't look installed.</summary>
         public static string? ValidateBepInExOrThrow(string gameRoot)
         {
             var bepin = GetBepInExDir(gameRoot);
@@ -27,104 +28,132 @@ namespace ErenshorModInstaller.Wpf.Services
             catch { return null; }
         }
 
-        /// <summary>
-        /// Installs a zip by copying files from a detected content root (zip root or wrapper folder)
-        /// into BepInEx/plugins/&lt;ZipName&gt;/...
-        /// - No manifest required.
-        /// - Recursively copies files from the detected content root.
-        /// </summary>
-        public static InstallResult InstallZip(string gameRoot, string zipPath)
+        // === PUBLIC INSTALLERS ===
+
+        public static InstallResult InstallFromAny(string gameRoot, string archivePath)
         {
-            if (!File.Exists(zipPath)) throw new FileNotFoundException("Zip not found.", zipPath);
+            var ext = Path.GetExtension(archivePath).ToLowerInvariant();
+            if (ext == ".zip") return InstallZip(gameRoot, archivePath);
+            if (ext == ".7z" || ext == ".rar") return InstallArchiveSharpCompress(gameRoot, archivePath);
+            throw new NotSupportedException("Unsupported file type: " + ext);
+        }
+
+        public static InstallResult InstallFromDirectory(string gameRoot, string folderPath)
+        {
+            if (!Directory.Exists(folderPath)) throw new DirectoryNotFoundException(folderPath);
 
             var plugins = GetPluginsDir(gameRoot);
             Directory.CreateDirectory(plugins);
 
-            // Folder name derived from zip file name
-            var folderName = SanitizeFolderName(Path.GetFileNameWithoutExtension(zipPath));
-            if (string.IsNullOrWhiteSpace(folderName)) folderName = "Mod";
+            var folderName = SanitizeFolderName(new DirectoryInfo(folderPath).Name);
+            var targetDir = Path.Combine(plugins, folderName);
+            if (Directory.Exists(targetDir)) TryDeleteDirectory(targetDir);
+            Directory.CreateDirectory(targetDir);
 
-            // Extract to temp
+            // Detect content root inside the provided folder (same heuristic as archives)
+            var (contentRoot, warning) = DetectContentRoot(folderPath);
+
+            CopyAll(contentRoot, targetDir);
+
+            var hasDll = Directory.GetFiles(targetDir, "*.dll", SearchOption.AllDirectories).Any();
+            if (!hasDll)
+                warning = string.IsNullOrEmpty(warning) ? "Warning: No DLL found in the installed files." : warning + " Also: no DLL found.";
+
+            return new InstallResult { TargetDir = targetDir, Warning = warning };
+        }
+
+        // === ZIP (built-in) ===
+        public static InstallResult InstallZip(string gameRoot, string zipPath)
+        {
+            var temp = ExtractZipToTemp(zipPath);
+            try { return InstallFromExtracted(gameRoot, zipPath, temp); }
+            finally { TryDeleteDirectory(temp); }
+        }
+
+        private static string ExtractZipToTemp(string zipPath)
+        {
+            if (!File.Exists(zipPath)) throw new FileNotFoundException("Zip not found.", zipPath);
             var temp = Path.Combine(Path.GetTempPath(), "er_mod_" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(temp);
             ZipFile.ExtractToDirectory(zipPath, temp, overwriteFiles: true);
-
-            try
-            {
-                // Detect the "content root" inside the extracted tree
-                var (contentRoot, warning) = DetectContentRoot(temp);
-
-                var targetDir = Path.Combine(plugins, folderName);
-                if (Directory.Exists(targetDir)) TryDeleteDirectory(targetDir);
-                Directory.CreateDirectory(targetDir);
-
-                // Copy everything recursively from contentRoot -> targetDir
-                CopyAll(contentRoot, targetDir);
-
-                // Ensure at least one DLL exists somewhere under target (warn if not)
-                var hasAnyDll = Directory.GetFiles(targetDir, "*.dll", SearchOption.AllDirectories).Any();
-                if (!hasAnyDll)
-                {
-                    warning = string.IsNullOrEmpty(warning)
-                        ? "Warning: No DLL found in the installed files."
-                        : warning + " Also: no DLL found in the installed files.";
-                }
-
-                return new InstallResult { TargetDir = targetDir, Warning = warning };
-            }
-            finally
-            {
-                TryDeleteDirectory(temp);
-            }
+            return temp;
         }
 
-        /// <summary>
-        /// Heuristics to find where the mod actually lives in the extracted zip:
-        /// 1) If zip ROOT has any *.dll -> use ROOT.
-        /// 2) If ROOT has exactly one directory and no files -> use that directory.
-        /// 3) Else find the nearest directory that directly contains a *.dll (shallowest depth).
-        /// 4) Fallback to ROOT.
-        /// Returns (contentRootPath, optionalWarning).
-        /// </summary>
+        // === 7z/RAR (SharpCompress) ===
+        public static InstallResult InstallArchiveSharpCompress(string gameRoot, string archivePath)
+        {
+            if (!File.Exists(archivePath)) throw new FileNotFoundException("Archive not found.", archivePath);
+
+            var temp = Path.Combine(Path.GetTempPath(), "er_mod_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(temp);
+
+            using (var archive = ArchiveFactory.Open(archivePath))
+            {
+                foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
+                {
+                    var outPath = Path.Combine(temp, entry.Key.Replace('/', Path.DirectorySeparatorChar));
+                    Directory.CreateDirectory(Path.GetDirectoryName(outPath)!);
+                    entry.WriteToFile(outPath, new ExtractionOptions { ExtractFullPath = true, Overwrite = true });
+                }
+            }
+
+            try { return InstallFromExtracted(gameRoot, archivePath, temp); }
+            finally { TryDeleteDirectory(temp); }
+        }
+
+        // === Shared extracted install ===
+        private static InstallResult InstallFromExtracted(string gameRoot, string sourcePath, string extractedRoot)
+        {
+            var plugins = GetPluginsDir(gameRoot);
+            Directory.CreateDirectory(plugins);
+
+            var folderName = SanitizeFolderName(Path.GetFileNameWithoutExtension(sourcePath));
+            if (string.IsNullOrWhiteSpace(folderName)) folderName = "Mod";
+
+            var (contentRoot, warning) = DetectContentRoot(extractedRoot);
+
+            var targetDir = Path.Combine(plugins, folderName);
+            if (Directory.Exists(targetDir)) TryDeleteDirectory(targetDir);
+            Directory.CreateDirectory(targetDir);
+
+            CopyAll(contentRoot, targetDir);
+
+            var hasAnyDll = Directory.GetFiles(targetDir, "*.dll", SearchOption.AllDirectories).Any();
+            if (!hasAnyDll)
+                warning = string.IsNullOrEmpty(warning) ? "Warning: No DLL found in the installed files." : warning + " Also: no DLL found.";
+
+            return new InstallResult { TargetDir = targetDir, Warning = warning };
+        }
+
+        // === Heuristics & helpers ===
+
         private static (string contentRoot, string? warning) DetectContentRoot(string extractedRoot)
         {
-            // Case 1: DLLs at root
             var dllsAtRoot = Directory.GetFiles(extractedRoot, "*.dll", SearchOption.TopDirectoryOnly);
-            if (dllsAtRoot.Length > 0)
-                return (extractedRoot, null);
+            if (dllsAtRoot.Length > 0) return (extractedRoot, null);
 
-            // Case 2: Single top-level folder (common wrapper) and no files at root
             var filesAtRoot = Directory.GetFiles(extractedRoot, "*", SearchOption.TopDirectoryOnly);
             var dirsAtRoot = Directory.GetDirectories(extractedRoot, "*", SearchOption.TopDirectoryOnly);
             if (filesAtRoot.Length == 0 && dirsAtRoot.Length == 1)
-            {
-                var single = dirsAtRoot[0];
-                return (single, "Detected a wrapper folder in the zip; installed its contents.");
-            }
+                return (dirsAtRoot[0], "Detected a wrapper folder; installed its contents.");
 
-            // Case 3: Find shallowest directory that directly contains a DLL
             var shallowDllDir = Directory.GetDirectories(extractedRoot, "*", SearchOption.AllDirectories)
                 .OrderBy(p => p.Count(c => c == Path.DirectorySeparatorChar || c == Path.AltDirectorySeparatorChar))
-                .FirstOrDefault(dir => Directory.GetFiles(dir, "*.dll", SearchOption.TopDirectoryOnly).Length > 0);
+                .FirstOrDefault(dir => Directory.GetFiles(dir, "*.dll", SearchOption.TopDirectoryOnly).Any());
 
             if (!string.IsNullOrEmpty(shallowDllDir))
-            {
                 return (shallowDllDir, "Installed from the subfolder that contains the mod DLLs.");
-            }
 
-            // Case 4: Fallback
-            return (extractedRoot, "Could not find DLLs; installed from zip root. If files were nested, they might be too deep.");
+            return (extractedRoot, "Could not find DLLs; installed from root. If files were nested, they may be too deep.");
         }
 
         private static void CopyAll(string src, string dst)
         {
-            // Create directories
             foreach (var dirPath in Directory.GetDirectories(src, "*", SearchOption.AllDirectories))
             {
                 var rel = Path.GetRelativePath(src, dirPath);
                 Directory.CreateDirectory(Path.Combine(dst, rel));
             }
-            // Copy files
             foreach (var filePath in Directory.GetFiles(src, "*", SearchOption.AllDirectories))
             {
                 var rel = Path.GetRelativePath(src, filePath);

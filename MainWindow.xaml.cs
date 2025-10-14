@@ -1,5 +1,6 @@
 using Microsoft.Win32;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -55,6 +56,19 @@ namespace ErenshorModInstaller.Wpf
             }
         }
 
+        private void OpenPlugins_Click(object sender, RoutedEventArgs e)
+        {
+            var root = GamePathBox.Text;
+            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
+            {
+                Status("Set a valid game folder first.");
+                return;
+            }
+            var plugins = Installer.GetPluginsDir(root);
+            Directory.CreateDirectory(plugins);
+            Process.Start(new ProcessStartInfo { FileName = plugins, UseShellExecute = true });
+        }
+
         private void Validate_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -76,8 +90,12 @@ namespace ErenshorModInstaller.Wpf
 
         private void InstallZip_Click(object sender, RoutedEventArgs e)
         {
-            var ofd = new OpenFileDialog { Filter = "Zip files|*.zip", Title = "Choose a Mod.zip" };
-            if (ofd.ShowDialog() == true) InstallZip(ofd.FileName);
+            var ofd = new OpenFileDialog
+            {
+                Title = "Choose a Mod archive",
+                Filter = "Archives|*.zip;*.7z;*.rar|Zip|*.zip|7-Zip|*.7z|RAR|*.rar|All files|*.*"
+            };
+            if (ofd.ShowDialog() == true) InstallAny(ofd.FileName);
         }
 
         private void RefreshMods_Click(object sender, RoutedEventArgs e) => RefreshMods();
@@ -119,8 +137,12 @@ namespace ErenshorModInstaller.Wpf
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
                 var files = (string[])e.Data.GetData(DataFormats.FileDrop);
-                e.Effects = files.Any(f => f.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-                    ? DragDropEffects.Copy : DragDropEffects.None;
+                bool ok = files.Any(path =>
+                    Directory.Exists(path) ||
+                    path.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
+                    path.EndsWith(".7z", StringComparison.OrdinalIgnoreCase) ||
+                    path.EndsWith(".rar", StringComparison.OrdinalIgnoreCase));
+                e.Effects = ok ? DragDropEffects.Copy : DragDropEffects.None;
             }
             else e.Effects = DragDropEffects.None;
 
@@ -132,9 +154,8 @@ namespace ErenshorModInstaller.Wpf
             try
             {
                 if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
-                var files = (string[])e.Data.GetData(DataFormats.FileDrop);
-                foreach (var f in files.Where(f => f.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)))
-                    InstallZip(f);
+                var paths = (string[])e.Data.GetData(DataFormats.FileDrop);
+                foreach (var p in paths) InstallAny(p);
             }
             catch (Exception ex)
             {
@@ -143,6 +164,46 @@ namespace ErenshorModInstaller.Wpf
         }
 
         // Helpers
+        private void InstallAny(string path)
+        {
+            var root = GamePathBox.Text;
+            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
+            {
+                Status("Set a valid game folder first.");
+                return;
+            }
+
+            try { Installer.ValidateBepInExOrThrow(root); }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "BepInEx not detected",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                Status("Install aborted. Please install BepInEx 5.x first.");
+                return;
+            }
+
+            try
+            {
+                Installer.InstallResult result;
+                if (Directory.Exists(path))
+                {
+                    result = Installer.InstallFromDirectory(root, path);
+                }
+                else
+                {
+                    result = Installer.InstallFromAny(root, path);
+                }
+
+                Status($"Installed into: {RelativeToGame(result.TargetDir)}");
+                if (!string.IsNullOrEmpty(result.Warning)) Status(result.Warning);
+                RefreshMods();
+            }
+            catch (Exception ex)
+            {
+                Status("Install failed: " + ex.Message);
+            }
+        }
+
         private void Status(string msg) => StatusBlock.Text = msg;
 
         private string RelativeToGame(string fullPath)
@@ -154,19 +215,16 @@ namespace ErenshorModInstaller.Wpf
         private void RefreshMods()
         {
             ModsList.Items.Clear();
-
             var root = GamePathBox.Text;
             if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) return;
 
             var plugins = Installer.GetPluginsDir(root);
             Directory.CreateDirectory(plugins);
             foreach (var dir in Directory.GetDirectories(plugins))
-            {
                 ModsList.Items.Add(Path.GetFileName(dir));
-            }
         }
-
-        private void InstallZip(string zipPath)
+        
+        private void LaunchErenshor_Click(object sender, RoutedEventArgs e)
         {
             try
             {
@@ -177,24 +235,32 @@ namespace ErenshorModInstaller.Wpf
                     return;
                 }
 
-                try { Installer.ValidateBepInExOrThrow(root); }
-                catch (Exception ex)
+                var exe = Path.Combine(root, "Erenshor.exe");
+                if (File.Exists(exe))
                 {
-                    MessageBox.Show(ex.Message, "BepInEx not detected",
-                        MessageBoxButton.OK, MessageBoxImage.Warning);
-                    Status("Install aborted. Please install BepInEx 5.x first.");
-                    return;
-                }
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = exe,
+                        WorkingDirectory = root,
+                        UseShellExecute = true
+                    });
+                    Status("Launching Erenshor…");
 
-                var result = Installer.InstallZip(root, zipPath);
-                Status($"Installed into: {RelativeToGame(result.TargetDir)}");
-                if (!string.IsNullOrEmpty(result.Warning)) Status(result.Warning);
-                RefreshMods();
+                    // 🟢 close the installer after launching
+                    Close();
+                }
+                else
+                {
+                    Status("Erenshor.exe not found in this folder.");
+                    Process.Start(new ProcessStartInfo { FileName = root, UseShellExecute = true });
+                }
             }
             catch (Exception ex)
             {
-                Status("Install failed: " + ex.Message);
+                Status("Failed to launch: " + ex.Message);
             }
         }
+
+
     }
 }

@@ -11,6 +11,7 @@
 
     <ItemGroup>
         <Resource Include="Assets\appicon.ico" />
+        <PackageReference Include="SharpCompress" Version="0.37.2" />
     </ItemGroup>
 
     <PropertyGroup>
