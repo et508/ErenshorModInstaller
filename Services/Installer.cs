@@ -12,47 +12,180 @@ namespace ErenshorModInstaller.Wpf.Services
     {
         public static string GetBepInExDir(string gameRoot) => Path.Combine(gameRoot, "BepInEx");
         public static string GetPluginsDir(string gameRoot) => Path.Combine(GetBepInExDir(gameRoot), "plugins");
-
+        public static string GetConfigDir(string gameRoot)  => Path.Combine(GetBepInExDir(gameRoot), "config");
+        public static string GetBepInExCfgPath(string gameRoot) => Path.Combine(GetConfigDir(gameRoot), "BepInEx.cfg");
+        
         public static string? ValidateBepInExOrThrow(string gameRoot)
         {
-            var bepin = GetBepInExDir(gameRoot);
-            var core = Path.Combine(bepin, "core", "BepInEx.dll");
+            var bepin   = GetBepInExDir(gameRoot);
+            var core    = Path.Combine(bepin, "core", "BepInEx.dll");
             var winhttp = Path.Combine(gameRoot, "winhttp.dll");
-            var doorstop = Path.Combine(gameRoot, "doorstop_config.ini");
+            var doorstop= Path.Combine(gameRoot, "doorstop_config.ini");
+
+            if (!Directory.Exists(bepin))
+                throw new InvalidOperationException("BepInEx folder not found. Please install BepInEx 5.x (x64) into the Erenshor folder.");
 
             if (!File.Exists(core) || !File.Exists(winhttp) || !File.Exists(doorstop))
                 throw new InvalidOperationException(
-                    "BepInEx not detected.\nInstall BepInEx 5.x (x64) into the Erenshor folder, run the game once, then try again.");
+                    "BepInEx not fully detected. Install BepInEx 5.x (x64) into the Erenshor folder, then run the game once.");
 
             try { return FileVersionInfo.GetVersionInfo(core).FileVersion; }
             catch { return null; }
         }
 
-        // === PUBLIC INSTALLERS ===
+        public enum BepInExConfigStatus
+        {
+            Ok,
+            MissingConfig,
+            MissingKey,
+            WrongValue
+        }
+        
+        public static BepInExConfigStatus GetBepInExConfigStatus(string gameRoot, out string cfgPath)
+        {
+            cfgPath = GetBepInExCfgPath(gameRoot);
 
+            if (!File.Exists(cfgPath))
+                return BepInExConfigStatus.MissingConfig;
+
+            try
+            {
+                var lines = File.ReadAllLines(cfgPath);
+                var (idx, keyFound, isTrue) = FindHideManagerLine(lines);
+
+                if (!keyFound) return BepInExConfigStatus.MissingKey;
+                return isTrue ? BepInExConfigStatus.Ok : BepInExConfigStatus.WrongValue;
+            }
+            catch
+            {
+                return BepInExConfigStatus.MissingKey;
+            }
+        }
+        
+        public static void EnsureHideManagerGameObjectTrue(string gameRoot)
+        {
+            var cfgPath = GetBepInExCfgPath(gameRoot);
+            if (!File.Exists(cfgPath))
+                throw new InvalidOperationException(
+                    "BepInEx.cfg is missing. Please run Erenshor once after installing BepInEx to generate it.");
+
+            var lines = File.ReadAllLines(cfgPath);
+            var bak = cfgPath + ".bak";
+            try { File.Copy(cfgPath, bak, overwrite: true); } catch { /* best effort */ }
+
+            var (idx, keyFound, _) = FindHideManagerLine(lines);
+
+            if (keyFound)
+            {
+                lines[idx] = SetKeyLineToTrue(lines[idx]);
+            }
+            else
+            {
+                int bepIdx = FindSectionIndex(lines, "BepInEx");
+                var insertLine = "HideManagerGameObject = true";
+
+                if (bepIdx >= 0)
+                {
+                    int insertAt = bepIdx + 1;
+                    while (insertAt < lines.Length && IsBlankOrComment(lines[insertAt])) insertAt++;
+                    lines = InsertLine(lines, insertAt, insertLine);
+                }
+                else
+                {
+                    lines = InsertLine(lines, lines.Length, "");
+                    lines = InsertLine(lines, lines.Length, "[BepInEx]");
+                    lines = InsertLine(lines, lines.Length, insertLine);
+                }
+            }
+
+            File.WriteAllLines(cfgPath, lines);
+        }
+        
+        private static (int index, bool keyFound, bool isTrue) FindHideManagerLine(string[] lines)
+        {
+            var keys = new[] { "hidemanagergameobject", "hidemanagergameobjects" };
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i];
+                if (IsBlankOrComment(line)) continue;
+
+                var eq = line.IndexOf('=');
+                if (eq <= 0) continue;
+
+                var key = line.Substring(0, eq).Trim().ToLowerInvariant();
+                if (!keys.Contains(key)) continue;
+
+                var val = line.Substring(eq + 1).Trim();
+                var isTrue = val.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+                             val.Equals("1", StringComparison.OrdinalIgnoreCase) ||
+                             val.Equals("yes", StringComparison.OrdinalIgnoreCase);
+
+                return (i, true, isTrue);
+            }
+            return (-1, false, false);
+        }
+
+        private static bool IsBlankOrComment(string line)
+        {
+            if (string.IsNullOrWhiteSpace(line)) return true;
+            var t = line.TrimStart();
+            return t.StartsWith("#") || t.StartsWith(";") || t.StartsWith("//");
+        }
+
+        private static string SetKeyLineToTrue(string line)
+        {
+            var eq = line.IndexOf('=');
+            if (eq <= 0) return "HideManagerGameObject = true";
+            var left = line.Substring(0, eq).Trim();
+            return left + " = true";
+        }
+
+        private static int FindSectionIndex(string[] lines, string sectionNameNoBrackets)
+        {
+            var want = "[" + sectionNameNoBrackets.Trim() + "]";
+            for (int i = 0; i < lines.Length; i++)
+                if (string.Equals(lines[i].Trim(), want, StringComparison.OrdinalIgnoreCase))
+                    return i;
+            return -1;
+        }
+
+        private static string[] InsertLine(string[] lines, int index, string newLine)
+        {
+            if (index < 0) index = 0;
+            if (index > lines.Length) index = lines.Length;
+            var arr = new string[lines.Length + 1];
+            Array.Copy(lines, 0, arr, 0, index);
+            arr[index] = newLine;
+            Array.Copy(lines, index, arr, index + 1, lines.Length - index);
+            return arr;
+        }
+        
         public static InstallResult InstallFromAny(string gameRoot, string archivePath)
         {
             var ext = Path.GetExtension(archivePath).ToLowerInvariant();
-            if (ext == ".zip") return InstallZip(gameRoot, archivePath);
-            if (ext == ".7z" || ext == ".rar") return InstallArchiveSharpCompress(gameRoot, archivePath);
-            throw new NotSupportedException("Unsupported file type: " + ext);
+            return ext switch
+            {
+                ".zip" => InstallZip(gameRoot, archivePath),
+                ".7z" or ".rar" => InstallArchiveSharpCompress(gameRoot, archivePath),
+                _ => throw new NotSupportedException("Unsupported file type: " + ext)
+            };
         }
-
+        
         public static InstallResult InstallFromDirectory(string gameRoot, string folderPath)
         {
             if (!Directory.Exists(folderPath)) throw new DirectoryNotFoundException(folderPath);
-
+            
+            var bepin   = GetBepInExDir(gameRoot);
             var plugins = GetPluginsDir(gameRoot);
-            Directory.CreateDirectory(plugins);
+            if (!Directory.Exists(bepin))
+                throw new InvalidOperationException("BepInEx not found. Please install BepInEx 5.4.x into the game folder.");
 
             var folderName = SanitizeFolderName(new DirectoryInfo(folderPath).Name);
             var targetDir = Path.Combine(plugins, folderName);
             if (Directory.Exists(targetDir)) TryDeleteDirectory(targetDir);
-            Directory.CreateDirectory(targetDir);
+            Directory.CreateDirectory(targetDir); // allowed (inside existing plugins)
 
-            // Detect content root inside the provided folder (same heuristic as archives)
             var (contentRoot, warning) = DetectContentRoot(folderPath);
-
             CopyAll(contentRoot, targetDir);
 
             var hasDll = Directory.GetFiles(targetDir, "*.dll", SearchOption.AllDirectories).Any();
@@ -61,8 +194,7 @@ namespace ErenshorModInstaller.Wpf.Services
 
             return new InstallResult { TargetDir = targetDir, Warning = warning };
         }
-
-        // === ZIP (built-in) ===
+        
         public static InstallResult InstallZip(string gameRoot, string zipPath)
         {
             var temp = ExtractZipToTemp(zipPath);
@@ -78,8 +210,7 @@ namespace ErenshorModInstaller.Wpf.Services
             ZipFile.ExtractToDirectory(zipPath, temp, overwriteFiles: true);
             return temp;
         }
-
-        // === 7z/RAR (SharpCompress) ===
+        
         public static InstallResult InstallArchiveSharpCompress(string gameRoot, string archivePath)
         {
             if (!File.Exists(archivePath)) throw new FileNotFoundException("Archive not found.", archivePath);
@@ -93,19 +224,24 @@ namespace ErenshorModInstaller.Wpf.Services
                 {
                     var outPath = Path.Combine(temp, entry.Key.Replace('/', Path.DirectorySeparatorChar));
                     Directory.CreateDirectory(Path.GetDirectoryName(outPath)!);
-                    entry.WriteToFile(outPath, new ExtractionOptions { ExtractFullPath = true, Overwrite = true });
+                    entry.WriteToFile(outPath, new ExtractionOptions
+                    {
+                        ExtractFullPath = true,
+                        Overwrite = true
+                    });
                 }
             }
 
             try { return InstallFromExtracted(gameRoot, archivePath, temp); }
             finally { TryDeleteDirectory(temp); }
         }
-
-        // === Shared extracted install ===
+        
         private static InstallResult InstallFromExtracted(string gameRoot, string sourcePath, string extractedRoot)
         {
+            var bepin   = GetBepInExDir(gameRoot);
             var plugins = GetPluginsDir(gameRoot);
-            Directory.CreateDirectory(plugins);
+            if (!Directory.Exists(bepin))
+                throw new InvalidOperationException("BepInEx not found. Please install BepInEx 5.4.x into the game folder.");
 
             var folderName = SanitizeFolderName(Path.GetFileNameWithoutExtension(sourcePath));
             if (string.IsNullOrWhiteSpace(folderName)) folderName = "Mod";
@@ -114,7 +250,7 @@ namespace ErenshorModInstaller.Wpf.Services
 
             var targetDir = Path.Combine(plugins, folderName);
             if (Directory.Exists(targetDir)) TryDeleteDirectory(targetDir);
-            Directory.CreateDirectory(targetDir);
+            Directory.CreateDirectory(targetDir); 
 
             CopyAll(contentRoot, targetDir);
 
@@ -124,16 +260,14 @@ namespace ErenshorModInstaller.Wpf.Services
 
             return new InstallResult { TargetDir = targetDir, Warning = warning };
         }
-
-        // === Heuristics & helpers ===
-
-        private static (string contentRoot, string? warning) DetectContentRoot(string extractedRoot)
+        
+        public static (string contentRoot, string? warning) DetectContentRoot(string extractedRoot)
         {
             var dllsAtRoot = Directory.GetFiles(extractedRoot, "*.dll", SearchOption.TopDirectoryOnly);
             if (dllsAtRoot.Length > 0) return (extractedRoot, null);
 
             var filesAtRoot = Directory.GetFiles(extractedRoot, "*", SearchOption.TopDirectoryOnly);
-            var dirsAtRoot = Directory.GetDirectories(extractedRoot, "*", SearchOption.TopDirectoryOnly);
+            var dirsAtRoot  = Directory.GetDirectories(extractedRoot, "*", SearchOption.TopDirectoryOnly);
             if (filesAtRoot.Length == 0 && dirsAtRoot.Length == 1)
                 return (dirsAtRoot[0], "Detected a wrapper folder; installed its contents.");
 
@@ -157,7 +291,7 @@ namespace ErenshorModInstaller.Wpf.Services
             foreach (var filePath in Directory.GetFiles(src, "*", SearchOption.AllDirectories))
             {
                 var rel = Path.GetRelativePath(src, filePath);
-                var to = Path.Combine(dst, rel);
+                var to  = Path.Combine(dst, rel);
                 Directory.CreateDirectory(Path.GetDirectoryName(to)!);
                 File.Copy(filePath, to, overwrite: true);
             }
