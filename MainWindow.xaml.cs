@@ -251,26 +251,48 @@ namespace ErenshorModInstaller.Wpf
                 return;
             }
 
-            if (ModsList.SelectedItem is string folderName)
+            if (ModsList.SelectedItem is string display)
             {
                 var plugins = Installer.GetPluginsDir(GamePathBox.Text);
-                var target = Path.Combine(plugins, folderName);
-                if (!Directory.Exists(target)) { Status("Folder not found: " + folderName); return; }
 
-                var confirm = MessageBox.Show(
-                    $"Remove mod folder '{folderName}'?",
-                    "Confirm Uninstall",
-                    MessageBoxButton.YesNo, MessageBoxImage.Question);
-
-                if (confirm == MessageBoxResult.Yes)
+                if (display.StartsWith("[DLL] ", StringComparison.Ordinal))
                 {
-                    try { Installer.TryDeleteDirectory(target); Status($"Removed: {RelativeToGame(target)}"); RefreshMods(); }
-                    catch (Exception ex) { Status("Uninstall failed: " + ex.Message); }
+                    var fileName = display.Substring(6);
+                    var dllPath = Path.Combine(plugins, fileName);
+                    if (!File.Exists(dllPath)) { Status("File not found: " + fileName); return; }
+
+                    var confirm = MessageBox.Show(
+                        $"Remove DLL '{fileName}' from plugins?",
+                        "Confirm Uninstall",
+                        MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+                    if (confirm == MessageBoxResult.Yes)
+                    {
+                        try { File.Delete(dllPath); Status($"Removed: ./BepInEx/plugins/{fileName}"); RefreshMods(); }
+                        catch (Exception ex) { Status("Uninstall failed: " + ex.Message); }
+                    }
+                }
+                else
+                {
+                    var folderName = display;
+                    var target = Path.Combine(plugins, folderName);
+                    if (!Directory.Exists(target)) { Status("Folder not found: " + folderName); return; }
+
+                    var confirm = MessageBox.Show(
+                        $"Remove mod folder '{folderName}'?",
+                        "Confirm Uninstall",
+                        MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+                    if (confirm == MessageBoxResult.Yes)
+                    {
+                        try { Services.Installer.TryDeleteDirectory(target); Status($"Removed: {RelativeToGame(target)}"); RefreshMods(); }
+                        catch (Exception ex) { Status("Uninstall failed: " + ex.Message); }
+                    }
                 }
             }
             else
             {
-                Status("Select a mod folder to uninstall.");
+                Status("Select a mod or DLL to uninstall.");
             }
         }
 
@@ -283,7 +305,8 @@ namespace ErenshorModInstaller.Wpf
                     Directory.Exists(path) ||
                     path.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
                     path.EndsWith(".7z", StringComparison.OrdinalIgnoreCase) ||
-                    path.EndsWith(".rar", StringComparison.OrdinalIgnoreCase));
+                    path.EndsWith(".rar", StringComparison.OrdinalIgnoreCase) ||
+                    path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase));
                 e.Effects = ok ? DragDropEffects.Copy : DragDropEffects.None;
             }
             else e.Effects = DragDropEffects.None;
@@ -322,11 +345,8 @@ namespace ErenshorModInstaller.Wpf
                     "BepInEx not detected",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
-                Status("Install blocked: BepInEx not installed.");
-                return;
             }
-
-            if (!Directory.Exists(Installer.GetPluginsDir(root)))
+            else if (!Directory.Exists(Installer.GetPluginsDir(root)))
             {
                 MessageBox.Show(
                     "BepInEx\\plugins folder not found.\n\n" +
@@ -345,7 +365,7 @@ namespace ErenshorModInstaller.Wpf
                 Status("Install aborted: " + ex.Message);
                 return;
             }
-            
+
             var cfgStatus = Installer.GetBepInExConfigStatus(root, out var cfgPath);
             if (cfgStatus == Installer.BepInExConfigStatus.MissingConfig)
             {
@@ -385,10 +405,30 @@ namespace ErenshorModInstaller.Wpf
 
             try
             {
-                Installer.InstallResult result;
+                Services.Installer.InstallResult result;
                 if (Directory.Exists(path))
                 {
                     result = Services.Installer.InstallFromDirectory(root, path);
+                }
+                else if (path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+                {
+                    var plugins = Installer.GetPluginsDir(root);
+                    var fileName = Path.GetFileName(path);
+                    var target = Path.Combine(plugins, fileName);
+                    if (File.Exists(target))
+                    {
+                        var overwrite = MessageBox.Show(
+                            $"'{fileName}' already exists in plugins. Overwrite?",
+                            "File exists",
+                            MessageBoxButton.YesNo,
+                            MessageBoxImage.Question);
+                        if (overwrite != MessageBoxResult.Yes)
+                        {
+                            Status("Install canceled.");
+                            return;
+                        }
+                    }
+                    result = Services.Installer.InstallDll(root, path);
                 }
                 else
                 {
@@ -428,6 +468,13 @@ namespace ErenshorModInstaller.Wpf
 
             foreach (var dir in Directory.GetDirectories(plugins))
                 ModsList.Items.Add(Path.GetFileName(dir));
+
+            foreach (var dll in Directory.GetFiles(plugins, "*.dll", SearchOption.TopDirectoryOnly)
+                                         .Select(Path.GetFileName)
+                                         .OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
+            {
+                ModsList.Items.Add("[DLL] " + dll);
+            }
         }
     }
 }
