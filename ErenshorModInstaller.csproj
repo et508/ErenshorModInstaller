@@ -21,7 +21,7 @@
         <PublishTrimmed>false</PublishTrimmed>
         <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
         <DebugType>None</DebugType>
-        <!-- <PublishReadyToRun>true</PublishReadyToRun> -->
+        <PublishReadyToRun>true</PublishReadyToRun>
     </PropertyGroup>
 
 </Project>
