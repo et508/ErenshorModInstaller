@@ -1,4 +1,4 @@
-## [1.0.1] - TBD
+## [1.0.1] - 10/15/2025
 ### Installed Mods List
 - Will now show .dll files directly installed in the plugins folder
 - Enable/Disable mods with easy to use checkboxes
