@@ -1,5 +1,6 @@
 using Microsoft.Win32;
 using System;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -10,9 +11,40 @@ namespace ErenshorModInstaller.Wpf
 {
     public partial class MainWindow : Window
     {
+        public sealed class ModItem
+        {
+            public string DisplayName { get; set; } = "";
+            public bool IsFolder { get; set; }
+            public string? FolderName { get; set; }     
+            public string? DllFileName { get; set; }      
+            public bool IsEnabled { get; set; }
+            public bool IsPartial { get; set; }            
+            public bool HasDll { get; set; }               
+            public string StatusSuffix
+            {
+                get
+                {
+                    if (IsFolder)
+                    {
+                        if (!HasDll) return " (no dll)";
+                        if (IsPartial) return " (partial)";
+                        return IsEnabled ? "" : " (disabled)";
+                    }
+                    else
+                    {
+                        return IsEnabled ? "" : " (disabled)";
+                    }
+                }
+            }
+        }
+
+        public ObservableCollection<ModItem> Mods { get; } = new();
+        private bool _isUpdatingList;
+
         public MainWindow()
         {
             InitializeComponent();
+            DataContext = this;
             TryAutoDetect();
         }
 
@@ -177,52 +209,45 @@ namespace ErenshorModInstaller.Wpf
                         break;
 
                     case Installer.BepInExConfigStatus.MissingConfig:
+                        Status("BepInEx.cfg not found. Run Erenshor once to let BepInEx generate its configs.");
+                        if (showPrompts)
                         {
-                            var text = "BepInEx.cfg not found. Run Erenshor once to let BepInEx generate its configs.";
-                            Status(text);
-                            if (showPrompts)
-                            {
-                                MessageBox.Show(
-                                    "BepInEx.cfg was not found.\n\n" +
-                                    "You must run Erenshor once after installing BepInEx so it can create the config files and folder structure.",
-                                    "BepInEx config missing",
-                                    MessageBoxButton.OK,
-                                    MessageBoxImage.Warning);
-                            }
-                            break;
+                            MessageBox.Show(
+                                "BepInEx.cfg was not found.\n\n" +
+                                "You must run Erenshor once after installing BepInEx so it can create the config files and folder structure.",
+                                "BepInEx config missing",
+                                MessageBoxButton.OK,
+                                MessageBoxImage.Warning);
                         }
+                        break;
 
                     case Installer.BepInExConfigStatus.MissingKey:
                     case Installer.BepInExConfigStatus.WrongValue:
+                        Status("Warning: HideManagerGameObject should be TRUE for Erenshor mods to work correctly.");
+                        if (showPrompts || forceConfigPrompt)
                         {
-                            var warn = "Warning: HideManagerGameObject should be TRUE for Erenshor mods to work correctly.";
-                            Status(warn);
+                            var fix = MessageBox.Show(
+                                $"BepInEx.cfg found at:\n{cfgPath}\n\n" +
+                                "Setting 'HideManagerGameObject' should be TRUE for Erenshor mods to work correctly.\n" +
+                                "Would you like me to set it to true?",
+                                "BepInEx config",
+                                MessageBoxButton.YesNo,
+                                MessageBoxImage.Question);
 
-                            if (showPrompts || forceConfigPrompt)
+                            if (fix == MessageBoxResult.Yes)
                             {
-                                var fix = MessageBox.Show(
-                                    $"BepInEx.cfg found at:\n{cfgPath}\n\n" +
-                                    "Setting 'HideManagerGameObject' should be TRUE for Erenshor mods to work correctly.\n" +
-                                    "Would you like me to set it to true?",
-                                    "BepInEx config",
-                                    MessageBoxButton.YesNo,
-                                    MessageBoxImage.Question);
-
-                                if (fix == MessageBoxResult.Yes)
+                                try
                                 {
-                                    try
-                                    {
-                                        Installer.EnsureHideManagerGameObjectTrue(root);
-                                        Status("Updated BepInEx.cfg: HideManagerGameObject = true.");
-                                    }
-                                    catch (Exception ex2)
-                                    {
-                                        Status("Failed to update config: " + ex2.Message);
-                                    }
+                                    Installer.EnsureHideManagerGameObjectTrue(root);
+                                    Status("Updated BepInEx.cfg: HideManagerGameObject = true.");
+                                }
+                                catch (Exception ex2)
+                                {
+                                    Status("Failed to update config: " + ex2.Message);
                                 }
                             }
-                            break;
                         }
+                        break;
                 }
             }
             catch (Exception ex)
@@ -251,30 +276,13 @@ namespace ErenshorModInstaller.Wpf
                 return;
             }
 
-            if (ModsList.SelectedItem is string display)
+            if (ModsList.SelectedItem is ModItem item)
             {
                 var plugins = Installer.GetPluginsDir(GamePathBox.Text);
 
-                if (display.StartsWith("[DLL] ", StringComparison.Ordinal))
+                if (item.IsFolder)
                 {
-                    var fileName = display.Substring(6);
-                    var dllPath = Path.Combine(plugins, fileName);
-                    if (!File.Exists(dllPath)) { Status("File not found: " + fileName); return; }
-
-                    var confirm = MessageBox.Show(
-                        $"Remove DLL '{fileName}' from plugins?",
-                        "Confirm Uninstall",
-                        MessageBoxButton.YesNo, MessageBoxImage.Question);
-
-                    if (confirm == MessageBoxResult.Yes)
-                    {
-                        try { File.Delete(dllPath); Status($"Removed: ./BepInEx/plugins/{fileName}"); RefreshMods(); }
-                        catch (Exception ex) { Status("Uninstall failed: " + ex.Message); }
-                    }
-                }
-                else
-                {
-                    var folderName = display;
+                    var folderName = item.FolderName!;
                     var target = Path.Combine(plugins, folderName);
                     if (!Directory.Exists(target)) { Status("Folder not found: " + folderName); return; }
 
@@ -289,10 +297,88 @@ namespace ErenshorModInstaller.Wpf
                         catch (Exception ex) { Status("Uninstall failed: " + ex.Message); }
                     }
                 }
+                else
+                {
+                    var file = item.DllFileName!;
+                    var dllPath = Path.Combine(plugins, file);
+                    var dllDisabled = dllPath + ".disabled";
+                    var toDelete = File.Exists(dllPath) ? dllPath : dllDisabled;
+
+                    if (!File.Exists(toDelete)) { Status("File not found: " + file); return; }
+
+                    var confirm = MessageBox.Show(
+                        $"Remove DLL '{file}' from plugins?",
+                        "Confirm Uninstall",
+                        MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+                    if (confirm == MessageBoxResult.Yes)
+                    {
+                        try { File.Delete(toDelete); Status($"Removed: ./BepInEx/plugins/{Path.GetFileName(toDelete)}"); RefreshMods(); }
+                        catch (Exception ex) { Status("Uninstall failed: " + ex.Message); }
+                    }
+                }
             }
             else
             {
-                Status("Select a mod or DLL to uninstall.");
+                Status("Select a mod to uninstall.");
+            }
+        }
+
+        private void ModToggle_Checked(object sender, RoutedEventArgs e)
+        {
+            if (_isUpdatingList) return;
+            var item = (sender as FrameworkElement)?.DataContext as ModItem;
+            if (item == null) return;
+
+            var root = GamePathBox.Text;
+            try
+            {
+                if (item.IsFolder)
+                {
+                    Installer.EnableFolderMod(root, item.FolderName!);
+                }
+                else
+                {
+                    Installer.EnableDll(root, item.DllFileName!);
+                }
+                Status($"Enabled: {item.DisplayName}");
+            }
+            catch (Exception ex)
+            {
+                Status("Enable failed: " + ex.Message);
+            }
+            finally
+            {
+                RefreshMods();
+            }
+        }
+
+        private void ModToggle_Unchecked(object sender, RoutedEventArgs e)
+        {
+            if (_isUpdatingList) return;
+            var item = (sender as FrameworkElement)?.DataContext as ModItem;
+            if (item == null) return;
+
+            var root = GamePathBox.Text;
+            try
+            {
+                if (item.IsFolder)
+                {
+                    Installer.DisableFolderMod(root, item.FolderName!);
+                }
+                else
+                {
+                    Installer.DisableDll(root, item.DllFileName!);
+                }
+                Status($"Disabled: {item.DisplayName}");
+            }
+            catch (Exception ex)
+            {
+                Status("Disable failed: " + ex.Message);
+            }
+            finally
+            {
+                RefreshMods();
             }
         }
 
@@ -345,8 +431,11 @@ namespace ErenshorModInstaller.Wpf
                     "BepInEx not detected",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
+                Status("Install blocked: BepInEx not installed.");
+                return;
             }
-            else if (!Directory.Exists(Installer.GetPluginsDir(root)))
+
+            if (!Directory.Exists(Installer.GetPluginsDir(root)))
             {
                 MessageBox.Show(
                     "BepInEx\\plugins folder not found.\n\n" +
@@ -455,26 +544,56 @@ namespace ErenshorModInstaller.Wpf
 
         private void RefreshMods()
         {
-            ModsList.Items.Clear();
+            _isUpdatingList = true;
+            Mods.Clear();
+
             var root = GamePathBox.Text;
-            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) return;
+            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) { _isUpdatingList = false; return; }
 
             var plugins = Installer.GetPluginsDir(root);
             if (!Directory.Exists(plugins))
             {
                 Status("BepInEx/plugins not found. Run Erenshor once after installing BepInEx.");
+                _isUpdatingList = false;
                 return;
             }
 
-            foreach (var dir in Directory.GetDirectories(plugins))
-                ModsList.Items.Add(Path.GetFileName(dir));
 
-            foreach (var dll in Directory.GetFiles(plugins, "*.dll", SearchOption.TopDirectoryOnly)
-                                         .Select(Path.GetFileName)
-                                         .OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
+            var dirs = Directory.GetDirectories(plugins).OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase);
+            foreach (var dir in dirs)
             {
-                ModsList.Items.Add("[DLL] " + dll);
+                var (total, disabled) = Installer.GetFolderDllState(dir);
+                var item = new ModItem
+                {
+                    IsFolder = true,
+                    FolderName = Path.GetFileName(dir),
+                    DisplayName = Path.GetFileName(dir),
+                    HasDll = total > 0,
+                    IsPartial = (disabled > 0 && disabled < total),
+                    IsEnabled = (total == 0) ? true : (disabled == 0)
+                };
+                Mods.Add(item);
             }
+            
+            var enabledDlls = Directory.GetFiles(plugins, "*.dll", SearchOption.TopDirectoryOnly)
+                                       .Select(Path.GetFileNameWithoutExtension);
+            var disabledDlls = Directory.GetFiles(plugins, "*.dll.disabled", SearchOption.TopDirectoryOnly)
+                                        .Select(f => Path.GetFileName(f)!.Replace(".dll.disabled", "", StringComparison.OrdinalIgnoreCase));
+
+            var allDllBaseNames = enabledDlls.Union(disabledDlls).Distinct().OrderBy(n => n, StringComparer.OrdinalIgnoreCase);
+            foreach (var baseName in allDllBaseNames)
+            {
+                var isEnabled = File.Exists(Path.Combine(plugins, baseName + ".dll"));
+                Mods.Add(new ModItem
+                {
+                    IsFolder = false,
+                    DisplayName = baseName,           
+                    DllFileName = baseName + ".dll",
+                    IsEnabled = isEnabled
+                });
+            }
+
+            _isUpdatingList = false;
         }
     }
 }

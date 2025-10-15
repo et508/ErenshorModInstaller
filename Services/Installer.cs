@@ -33,20 +33,12 @@ namespace ErenshorModInstaller.Wpf.Services
             catch { return null; }
         }
 
-        public enum BepInExConfigStatus
-        {
-            Ok,
-            MissingConfig,
-            MissingKey,
-            WrongValue
-        }
+        public enum BepInExConfigStatus { Ok, MissingConfig, MissingKey, WrongValue }
 
         public static BepInExConfigStatus GetBepInExConfigStatus(string gameRoot, out string cfgPath)
         {
             cfgPath = GetBepInExCfgPath(gameRoot);
-
-            if (!File.Exists(cfgPath))
-                return BepInExConfigStatus.MissingConfig;
+            if (!File.Exists(cfgPath)) return BepInExConfigStatus.MissingConfig;
 
             try
             {
@@ -55,18 +47,14 @@ namespace ErenshorModInstaller.Wpf.Services
                 if (!keyFound) return BepInExConfigStatus.MissingKey;
                 return isTrue ? BepInExConfigStatus.Ok : BepInExConfigStatus.WrongValue;
             }
-            catch
-            {
-                return BepInExConfigStatus.MissingKey;
-            }
+            catch { return BepInExConfigStatus.MissingKey; }
         }
 
         public static void EnsureHideManagerGameObjectTrue(string gameRoot)
         {
             var cfgPath = GetBepInExCfgPath(gameRoot);
             if (!File.Exists(cfgPath))
-                throw new InvalidOperationException(
-                    "BepInEx.cfg is missing. Please run Erenshor once after installing BepInEx to generate it.");
+                throw new InvalidOperationException("BepInEx.cfg is missing. Please run Erenshor once after installing BepInEx to generate it.");
 
             var lines = File.ReadAllLines(cfgPath);
             var bak = cfgPath + ".bak";
@@ -82,7 +70,6 @@ namespace ErenshorModInstaller.Wpf.Services
             {
                 int bepIdx = FindSectionIndex(lines, "BepInEx");
                 var insertLine = "HideManagerGameObject = true";
-
                 if (bepIdx >= 0)
                 {
                     int insertAt = bepIdx + 1;
@@ -118,7 +105,6 @@ namespace ErenshorModInstaller.Wpf.Services
                 var isTrue = val.Equals("true", StringComparison.OrdinalIgnoreCase) ||
                              val.Equals("1", StringComparison.OrdinalIgnoreCase) ||
                              val.Equals("yes", StringComparison.OrdinalIgnoreCase);
-
                 return (i, true, isTrue);
             }
             return (-1, false, false);
@@ -171,7 +157,6 @@ namespace ErenshorModInstaller.Wpf.Services
             };
         }
 
-        // CHANGED: Folder drops are treated as intentional roots; copy the whole folder under plugins\<FolderName>\...
         public static InstallResult InstallFromDirectory(string gameRoot, string folderPath)
         {
             if (!Directory.Exists(folderPath)) throw new DirectoryNotFoundException(folderPath);
@@ -211,11 +196,7 @@ namespace ErenshorModInstaller.Wpf.Services
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             File.Copy(dllPath, target, overwrite: true);
 
-            return new InstallResult
-            {
-                TargetDir = plugins,
-                Warning = null
-            };
+            return new InstallResult { TargetDir = plugins, Warning = null };
         }
 
         public static InstallResult InstallZip(string gameRoot, string zipPath)
@@ -238,11 +219,7 @@ namespace ErenshorModInstaller.Wpf.Services
                 {
                     var outPath = Path.Combine(temp, entry.Key.Replace('/', Path.DirectorySeparatorChar));
                     Directory.CreateDirectory(Path.GetDirectoryName(outPath)!);
-                    entry.WriteToFile(outPath, new ExtractionOptions
-                    {
-                        ExtractFullPath = true,
-                        Overwrite = true
-                    });
+                    entry.WriteToFile(outPath, new ExtractionOptions { ExtractFullPath = true, Overwrite = true });
                 }
             }
 
@@ -260,7 +237,7 @@ namespace ErenshorModInstaller.Wpf.Services
                 throw new InvalidOperationException("BepInEx/plugins folder not found. Run Erenshor once after installing BepInEx.");
 
             var srcName = Path.GetFileNameWithoutExtension(sourcePath);
-            var plan = DecideInstallPlan(extractedRoot, isExtractedTemp: true, sourceNameForFallback: srcName);
+            var plan = DecideInstallPlan(extractedRoot, srcName);
             return ExecutePlan(gameRoot, plan);
         }
 
@@ -273,11 +250,7 @@ namespace ErenshorModInstaller.Wpf.Services
             return temp;
         }
 
-        private enum PlanType
-        {
-            IntoPlugins,
-            IntoSubfolder
-        }
+        private enum PlanType { IntoPlugins, IntoSubfolder }
 
         private sealed class InstallPlan
         {
@@ -287,19 +260,14 @@ namespace ErenshorModInstaller.Wpf.Services
             public string? Warning { get; init; }
         }
 
-        private static InstallPlan DecideInstallPlan(string extractedRootOrFolder, bool isExtractedTemp, string sourceNameForFallback)
+        private static InstallPlan DecideInstallPlan(string extractedRootOrFolder, string sourceNameForFallback)
         {
             var root = extractedRootOrFolder;
 
             var dllsAtRoot = Directory.GetFiles(root, "*.dll", SearchOption.TopDirectoryOnly);
             if (dllsAtRoot.Length > 0)
             {
-                return new InstallPlan
-                {
-                    Type = PlanType.IntoPlugins,
-                    SourceDir = root,
-                    Warning = null
-                };
+                return new InstallPlan { Type = PlanType.IntoPlugins, SourceDir = root, Warning = null };
             }
 
             var filesAtRoot = Directory.GetFiles(root, "*", SearchOption.TopDirectoryOnly);
@@ -411,6 +379,59 @@ namespace ErenshorModInstaller.Wpf.Services
         {
             public string TargetDir { get; set; } = "";
             public string? Warning { get; set; }
+        }
+
+     
+
+        public static void DisableDll(string gameRoot, string fileName)
+        {
+            var plugins = GetPluginsDir(gameRoot);
+            var src = Path.Combine(plugins, fileName);
+            var dst = src + ".disabled";
+            if (!File.Exists(src)) throw new FileNotFoundException("DLL not found.", src);
+            if (File.Exists(dst)) return;
+            File.Move(src, dst);
+        }
+
+        public static void EnableDll(string gameRoot, string fileName)
+        {
+            var plugins = GetPluginsDir(gameRoot);
+            var disabled = Path.Combine(plugins, fileName + ".disabled");
+            var enabled  = Path.Combine(plugins, fileName);
+            if (!File.Exists(disabled)) throw new FileNotFoundException("Disabled DLL not found.", disabled);
+            if (File.Exists(enabled)) throw new IOException($"'{fileName}' already exists.");
+            File.Move(disabled, enabled);
+        }
+
+        public static (int totalDlls, int disabledDlls) GetFolderDllState(string folderPath)
+        {
+            var total = Directory.GetFiles(folderPath, "*.dll", SearchOption.AllDirectories).Length
+                        + Directory.GetFiles(folderPath, "*.dll.disabled", SearchOption.AllDirectories).Length;
+            var disabled = Directory.GetFiles(folderPath, "*.dll.disabled", SearchOption.AllDirectories).Length;
+            return (total, disabled);
+        }
+
+        public static void DisableFolderMod(string gameRoot, string folderName)
+        {
+            var dir = Path.Combine(GetPluginsDir(gameRoot), folderName);
+            if (!Directory.Exists(dir)) throw new DirectoryNotFoundException(dir);
+            foreach (var dll in Directory.GetFiles(dir, "*.dll", SearchOption.AllDirectories))
+            {
+                var dst = dll + ".disabled";
+                if (!File.Exists(dst)) File.Move(dll, dst);
+            }
+        }
+
+        public static void EnableFolderMod(string gameRoot, string folderName)
+        {
+            var dir = Path.Combine(GetPluginsDir(gameRoot), folderName);
+            if (!Directory.Exists(dir)) throw new DirectoryNotFoundException(dir);
+            foreach (var dll in Directory.GetFiles(dir, "*.dll.disabled", SearchOption.AllDirectories))
+            {
+                var enabled = dll.Substring(0, dll.Length - ".disabled".Length);
+                if (File.Exists(enabled)) throw new IOException($"A DLL already exists next to: {Path.GetFileName(enabled)}");
+                File.Move(dll, enabled);
+            }
         }
     }
 }
