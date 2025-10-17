@@ -174,10 +174,13 @@ namespace ErenshorModInstaller.Wpf.Services
             Directory.CreateDirectory(targetDir);
             CopyAll(folderPath, targetDir);
 
-            var hasDll = Directory.GetFiles(targetDir, "*.dll", SearchOption.AllDirectories).Any();
+            var primaryDll = Directory.GetFiles(targetDir, "*.dll", SearchOption.AllDirectories)
+                                      .OrderBy(p => p.Count(c => c == Path.DirectorySeparatorChar || c == Path.AltDirectorySeparatorChar))
+                                      .FirstOrDefault();
+            var hasDll = primaryDll != null;
             var warning = hasDll ? null : "Warning: No DLL found in the installed files.";
 
-            return new InstallResult { TargetDir = targetDir, Warning = warning };
+            return new InstallResult { TargetDir = targetDir, PrimaryDll = primaryDll, Warning = warning };
         }
 
         public static InstallResult InstallDll(string gameRoot, string dllPath)
@@ -196,7 +199,7 @@ namespace ErenshorModInstaller.Wpf.Services
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             File.Copy(dllPath, target, overwrite: true);
 
-            return new InstallResult { TargetDir = plugins, Warning = null };
+            return new InstallResult { TargetDir = plugins, PrimaryDll = target, Warning = null };
         }
 
         public static InstallResult InstallZip(string gameRoot, string zipPath)
@@ -319,11 +322,17 @@ namespace ErenshorModInstaller.Wpf.Services
 
             string targetDir;
             string? warning = plan.Warning;
+            string? primaryDll = null;
 
             if (plan.Type == PlanType.IntoPlugins)
             {
                 targetDir = plugins;
                 CopyAll(plan.SourceDir, targetDir);
+
+                // Try to pick a primary dll that was just copied
+                primaryDll = Directory.GetFiles(targetDir, "*.dll", SearchOption.TopDirectoryOnly)
+                    .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+                    .FirstOrDefault();
             }
             else
             {
@@ -331,6 +340,10 @@ namespace ErenshorModInstaller.Wpf.Services
                 if (Directory.Exists(targetDir)) TryDeleteDirectory(targetDir);
                 Directory.CreateDirectory(targetDir);
                 CopyAll(plan.SourceDir, targetDir);
+
+                primaryDll = Directory.GetFiles(targetDir, "*.dll", SearchOption.AllDirectories)
+                    .OrderBy(p => p.Count(c => c == Path.DirectorySeparatorChar || c == Path.AltDirectorySeparatorChar))
+                    .FirstOrDefault();
             }
 
             var searchBase = plan.Type == PlanType.IntoPlugins ? plugins : targetDir;
@@ -338,7 +351,7 @@ namespace ErenshorModInstaller.Wpf.Services
             if (!hasDll)
                 warning = string.IsNullOrEmpty(warning) ? "Warning: No DLL found in the installed files." : warning + " Also: no DLL found.";
 
-            return new InstallResult { TargetDir = targetDir, Warning = warning };
+            return new InstallResult { TargetDir = targetDir, PrimaryDll = primaryDll, Warning = warning };
         }
 
         private static void CopyAll(string src, string dst)
@@ -378,10 +391,11 @@ namespace ErenshorModInstaller.Wpf.Services
         public sealed class InstallResult
         {
             public string TargetDir { get; set; } = "";
+            public string? PrimaryDll { get; set; }  // NEW: the “best guess” DLL we copied (if any)
             public string? Warning { get; set; }
         }
 
-     
+        // ===== Enable / Disable =====
 
         public static void DisableDll(string gameRoot, string fileName)
         {

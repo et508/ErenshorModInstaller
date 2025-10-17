@@ -13,29 +13,16 @@ namespace ErenshorModInstaller.Wpf
     {
         public sealed class ModItem
         {
-            public string DisplayName { get; set; } = "";
+            public string Guid { get; set; } = "";
+            public string DisplayName { get; set; } = ""; // BepInPlugin Name
+            public string Version { get; set; } = "";     // BepInPlugin Version (or "0.0.0")
             public bool IsFolder { get; set; }
-            public string? FolderName { get; set; }     
-            public string? DllFileName { get; set; }      
+            public string? FolderName { get; set; }       // if folder mod
+            public string? DllFileName { get; set; }      // if top-level dll mod (baseName.dll)
+            public string PluginDllFullPath { get; set; } = ""; // absolute path to the plugin dll (can be .dll or .dll.disabled)
             public bool IsEnabled { get; set; }
-            public bool IsPartial { get; set; }            
-            public bool HasDll { get; set; }               
-            public string StatusSuffix
-            {
-                get
-                {
-                    if (IsFolder)
-                    {
-                        if (!HasDll) return " (no dll)";
-                        if (IsPartial) return " (partial)";
-                        return IsEnabled ? "" : " (disabled)";
-                    }
-                    else
-                    {
-                        return IsEnabled ? "" : " (disabled)";
-                    }
-                }
-            }
+
+            public string StatusSuffix => IsEnabled ? "" : " (disabled)";
         }
 
         public ObservableCollection<ModItem> Mods { get; } = new();
@@ -70,8 +57,6 @@ namespace ErenshorModInstaller.Wpf
                 Status("Auto-detect failed: " + ex.Message);
             }
         }
-
-        private void DetectSteam_Click(object sender, RoutedEventArgs e) => TryAutoDetect();
 
         private void Browse_Click(object sender, RoutedEventArgs e)
         {
@@ -278,44 +263,54 @@ namespace ErenshorModInstaller.Wpf
 
             if (ModsList.SelectedItem is ModItem item)
             {
-                var plugins = Installer.GetPluginsDir(GamePathBox.Text);
-
-                if (item.IsFolder)
+                try
                 {
-                    var folderName = item.FolderName!;
-                    var target = Path.Combine(plugins, folderName);
-                    if (!Directory.Exists(target)) { Status("Folder not found: " + folderName); return; }
-
-                    var confirm = MessageBox.Show(
-                        $"Remove mod folder '{folderName}'?",
-                        "Confirm Uninstall",
-                        MessageBoxButton.YesNo, MessageBoxImage.Question);
-
-                    if (confirm == MessageBoxResult.Yes)
+                    if (item.IsFolder)
                     {
-                        try { Services.Installer.TryDeleteDirectory(target); Status($"Removed: {RelativeToGame(target)}"); RefreshMods(); }
-                        catch (Exception ex) { Status("Uninstall failed: " + ex.Message); }
+                        var plugins = Installer.GetPluginsDir(GamePathBox.Text);
+                        var target = Path.Combine(plugins, item.FolderName!);
+                        if (!Directory.Exists(target)) { Status("Folder not found: " + item.FolderName); return; }
+
+                        var confirm = MessageBox.Show(
+                            $"Remove mod folder '{item.FolderName}'?",
+                            "Confirm Uninstall",
+                            MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+                        if (confirm == MessageBoxResult.Yes)
+                        {
+                            Installer.TryDeleteDirectory(target);
+                            Status($"Removed: ./BepInEx/plugins/{item.FolderName}");
+                            RefreshMods();
+                        }
+                    }
+                    else
+                    {
+                        var path = item.PluginDllFullPath;
+                        var baseDll = path.EndsWith(".disabled", StringComparison.OrdinalIgnoreCase)
+                            ? path[..^(".disabled".Length)]
+                            : path;
+
+                        var existing = File.Exists(baseDll) ? baseDll
+                                     : (File.Exists(baseDll + ".disabled") ? baseDll + ".disabled" : null);
+
+                        if (existing == null) { Status("File not found."); return; }
+
+                        var confirm = MessageBox.Show(
+                            $"Remove DLL '{Path.GetFileName(existing)}' from plugins?",
+                            "Confirm Uninstall",
+                            MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+                        if (confirm == MessageBoxResult.Yes)
+                        {
+                            File.Delete(existing);
+                            Status($"Removed: ./BepInEx/plugins/{Path.GetFileName(existing)}");
+                            RefreshMods();
+                        }
                     }
                 }
-                else
+                catch (Exception ex)
                 {
-                    var file = item.DllFileName!;
-                    var dllPath = Path.Combine(plugins, file);
-                    var dllDisabled = dllPath + ".disabled";
-                    var toDelete = File.Exists(dllPath) ? dllPath : dllDisabled;
-
-                    if (!File.Exists(toDelete)) { Status("File not found: " + file); return; }
-
-                    var confirm = MessageBox.Show(
-                        $"Remove DLL '{file}' from plugins?",
-                        "Confirm Uninstall",
-                        MessageBoxButton.YesNo, MessageBoxImage.Question);
-
-                    if (confirm == MessageBoxResult.Yes)
-                    {
-                        try { File.Delete(toDelete); Status($"Removed: ./BepInEx/plugins/{Path.GetFileName(toDelete)}"); RefreshMods(); }
-                        catch (Exception ex) { Status("Uninstall failed: " + ex.Message); }
-                    }
+                    Status("Uninstall failed: " + ex.Message);
                 }
             }
             else
@@ -330,17 +325,19 @@ namespace ErenshorModInstaller.Wpf
             var item = (sender as FrameworkElement)?.DataContext as ModItem;
             if (item == null) return;
 
-            var root = GamePathBox.Text;
             try
             {
-                if (item.IsFolder)
+                var path = item.PluginDllFullPath;
+                if (path.EndsWith(".disabled", StringComparison.OrdinalIgnoreCase))
                 {
-                    Installer.EnableFolderMod(root, item.FolderName!);
+                    var enabledPath = path[..^(".disabled".Length)];
+                    if (File.Exists(path))
+                    {
+                        File.Move(path, enabledPath, true);
+                        item.PluginDllFullPath = enabledPath;
+                    }
                 }
-                else
-                {
-                    Installer.EnableDll(root, item.DllFileName!);
-                }
+                item.IsEnabled = true;
                 Status($"Enabled: {item.DisplayName}");
             }
             catch (Exception ex)
@@ -359,17 +356,19 @@ namespace ErenshorModInstaller.Wpf
             var item = (sender as FrameworkElement)?.DataContext as ModItem;
             if (item == null) return;
 
-            var root = GamePathBox.Text;
             try
             {
-                if (item.IsFolder)
+                var path = item.PluginDllFullPath;
+                if (!path.EndsWith(".disabled", StringComparison.OrdinalIgnoreCase))
                 {
-                    Installer.DisableFolderMod(root, item.FolderName!);
+                    var disabledPath = path + ".disabled";
+                    if (File.Exists(path))
+                    {
+                        File.Move(path, disabledPath, true);
+                        item.PluginDllFullPath = disabledPath;
+                    }
                 }
-                else
-                {
-                    Installer.DisableDll(root, item.DllFileName!);
-                }
+                item.IsEnabled = false;
                 Status($"Disabled: {item.DisplayName}");
             }
             catch (Exception ex)
@@ -494,10 +493,10 @@ namespace ErenshorModInstaller.Wpf
 
             try
             {
-                Services.Installer.InstallResult result;
+                Installer.InstallResult result;
                 if (Directory.Exists(path))
                 {
-                    result = Services.Installer.InstallFromDirectory(root, path);
+                    result = Installer.InstallFromDirectory(root, path);
                 }
                 else if (path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
                 {
@@ -517,15 +516,46 @@ namespace ErenshorModInstaller.Wpf
                             return;
                         }
                     }
-                    result = Services.Installer.InstallDll(root, path);
+                    result = Installer.InstallDll(root, path);
                 }
                 else
                 {
-                    result = Services.Installer.InstallFromAny(root, path);
+                    result = Installer.InstallFromAny(root, path);
                 }
 
                 Status($"Installed into: {RelativeToGame(result.TargetDir)}");
-                if (!string.IsNullOrEmpty(result.Warning)) Status(result.Warning);
+
+                // Scan only for plugin dll; skip dependencies
+                VersionScanner.ModVersionInfo? scan = null;
+
+                if (!string.IsNullOrEmpty(result.PrimaryDll) && File.Exists(result.PrimaryDll))
+                {
+                    scan = VersionScanner.ScanDll(result.PrimaryDll);
+                }
+                else
+                {
+                    var plugins = Installer.GetPluginsDir(root);
+                    if (!string.Equals(result.TargetDir, plugins, StringComparison.OrdinalIgnoreCase)
+                        && Directory.Exists(result.TargetDir))
+                    {
+                        scan = VersionScanner.ScanFolder(result.TargetDir);
+                    }
+                    else
+                    {
+                        if (File.Exists(path))
+                        {
+                            var installedFile = Path.Combine(plugins, Path.GetFileName(path));
+                            if (File.Exists(installedFile))
+                                scan = VersionScanner.ScanDll(installedFile);
+                        }
+                    }
+                }
+
+                if (scan != null && !string.IsNullOrWhiteSpace(scan.Guid))
+                {
+                    ModIndex.UpsertFromScan(root, scan);
+                }
+
                 RefreshMods();
             }
             catch (Exception ex)
@@ -558,38 +588,65 @@ namespace ErenshorModInstaller.Wpf
                 return;
             }
 
+            // Ensure index exists at least once (and is minimal)
+            ModIndex.EnsureMinimalIndex(root);
+            var index = ModIndex.Load(root);
 
+            // Folder mods: include ONLY folders containing a plugin dll
             var dirs = Directory.GetDirectories(plugins).OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase);
             foreach (var dir in dirs)
             {
-                var (total, disabled) = Installer.GetFolderDllState(dir);
-                var item = new ModItem
-                {
-                    IsFolder = true,
-                    FolderName = Path.GetFileName(dir),
-                    DisplayName = Path.GetFileName(dir),
-                    HasDll = total > 0,
-                    IsPartial = (disabled > 0 && disabled < total),
-                    IsEnabled = (total == 0) ? true : (disabled == 0)
-                };
-                Mods.Add(item);
-            }
-            
-            var enabledDlls = Directory.GetFiles(plugins, "*.dll", SearchOption.TopDirectoryOnly)
-                                       .Select(Path.GetFileNameWithoutExtension);
-            var disabledDlls = Directory.GetFiles(plugins, "*.dll.disabled", SearchOption.TopDirectoryOnly)
-                                        .Select(f => Path.GetFileName(f)!.Replace(".dll.disabled", "", StringComparison.OrdinalIgnoreCase));
+                VersionScanner.ModVersionInfo? scan = null;
+                try { scan = VersionScanner.ScanFolder(dir); } catch { }
 
-            var allDllBaseNames = enabledDlls.Union(disabledDlls).Distinct().OrderBy(n => n, StringComparer.OrdinalIgnoreCase);
-            foreach (var baseName in allDllBaseNames)
-            {
-                var isEnabled = File.Exists(Path.Combine(plugins, baseName + ".dll"));
+                if (scan == null || string.IsNullOrWhiteSpace(scan.Guid)) continue; // dependency-only folder, skip
+
+                var dllPath = scan.DllPath;
+                var enabled = !dllPath.EndsWith(".disabled", StringComparison.OrdinalIgnoreCase);
+
                 Mods.Add(new ModItem
                 {
+                    Guid = scan.Guid,
+                    DisplayName = string.IsNullOrWhiteSpace(scan.Name) ? scan.Guid : scan.Name,
+                    Version = string.IsNullOrWhiteSpace(scan.Version) ? "0.0.0" : scan.Version,
+                    IsFolder = true,
+                    FolderName = Path.GetFileName(dir),
+                    PluginDllFullPath = dllPath,
+                    IsEnabled = enabled
+                });
+            }
+
+            // Top-level plugin DLLs: consider both enabled and disabled; show only if they’re plugins
+            var enabledDlls = Directory.GetFiles(plugins, "*.dll", SearchOption.TopDirectoryOnly).ToArray();
+            var disabledDlls = Directory.GetFiles(plugins, "*.dll.disabled", SearchOption.TopDirectoryOnly).ToArray();
+
+            var allBaseNames = enabledDlls.Select(p => Path.GetFileNameWithoutExtension(p))
+                                          .Union(disabledDlls.Select(p => Path.GetFileNameWithoutExtension(p)
+                                                                                .Replace(".dll", "", StringComparison.OrdinalIgnoreCase)))
+                                          .Distinct(StringComparer.OrdinalIgnoreCase)
+                                          .OrderBy(n => n, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var baseName in allBaseNames)
+            {
+                var enabledPath = Path.Combine(plugins, baseName + ".dll");
+                var disabledPath = enabledPath + ".disabled";
+                var chosenPath = File.Exists(enabledPath) ? enabledPath
+                                : (File.Exists(disabledPath) ? disabledPath : null);
+                if (chosenPath == null) continue;
+
+                VersionScanner.ModVersionInfo? scan = null;
+                try { scan = VersionScanner.ScanDll(chosenPath); } catch { }
+                if (scan == null || string.IsNullOrWhiteSpace(scan.Guid)) continue; // dependency DLL: skip
+
+                Mods.Add(new ModItem
+                {
+                    Guid = scan.Guid,
+                    DisplayName = string.IsNullOrWhiteSpace(scan.Name) ? scan.Guid : scan.Name,
+                    Version = string.IsNullOrWhiteSpace(scan.Version) ? "0.0.0" : scan.Version,
                     IsFolder = false,
-                    DisplayName = baseName,           
                     DllFileName = baseName + ".dll",
-                    IsEnabled = isEnabled
+                    PluginDllFullPath = chosenPath,
+                    IsEnabled = File.Exists(enabledPath)
                 });
             }
 
