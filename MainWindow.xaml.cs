@@ -4,6 +4,8 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using ErenshorModInstaller.Wpf.Services;
 
@@ -45,7 +47,7 @@ namespace ErenshorModInstaller.Wpf
                     GamePathBox.Text = erRoot;
                     RefreshMods();
                     Status("Detected Erenshor via Steam.");
-                    RunValidation(showPrompts: false, forceConfigPrompt: true);
+                    _ = RunValidationAsync(showPrompts: true, forceConfigPrompt: true);
                 }
                 else
                 {
@@ -71,7 +73,7 @@ namespace ErenshorModInstaller.Wpf
                 var folder = Path.GetDirectoryName(dlg.FileName)!;
                 GamePathBox.Text = folder;
                 RefreshMods();
-                RunValidation(showPrompts: false, forceConfigPrompt: true);
+                _ = RunValidationAsync(showPrompts: false, forceConfigPrompt: true);
             }
         }
 
@@ -99,11 +101,12 @@ namespace ErenshorModInstaller.Wpf
             Process.Start(new ProcessStartInfo { FileName = plugins, UseShellExecute = true });
         }
 
-        private void LaunchErenshor_Click(object sender, RoutedEventArgs e)
+        private void LaunchErenshor_Click(object sender, RoutedEventArgs e) => TryLaunchErenshor(GamePathBox.Text);
+
+        private void TryLaunchErenshor(string root)
         {
             try
             {
-                var root = GamePathBox.Text;
                 if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
                 {
                     Status("Set a valid game folder first.");
@@ -134,9 +137,10 @@ namespace ErenshorModInstaller.Wpf
             }
         }
 
-        private void Validate_Click(object sender, RoutedEventArgs e) => RunValidation(showPrompts: true, forceConfigPrompt: false);
+        private async void Validate_Click(object sender, RoutedEventArgs e)
+            => await RunValidationAsync(showPrompts: true, forceConfigPrompt: false);
 
-        private void RunValidation(bool showPrompts, bool forceConfigPrompt)
+        private async Task RunValidationAsync(bool showPrompts, bool forceConfigPrompt)
         {
             try
             {
@@ -147,7 +151,7 @@ namespace ErenshorModInstaller.Wpf
                     return;
                 }
 
-                string? ver;
+                string? ver = null;
                 try
                 {
                     ver = Installer.ValidateBepInExOrThrow(root);
@@ -155,31 +159,79 @@ namespace ErenshorModInstaller.Wpf
                 catch (Exception ex)
                 {
                     Status(ex.Message);
-                    if (showPrompts)
+
+                    if (!showPrompts)
+                        return;
+
+                    var doInstall = MessageBox.Show(
+                        "BepInEx is not detected.\n\n" +
+                        "Would you like to automatically download and install BepInEx 5 (x64) into your Erenshor folder?",
+                        "BepInEx not detected",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question);
+
+                    if (doInstall == MessageBoxResult.Yes)
                     {
-                        MessageBox.Show(
-                            ex.Message +
-                            "\n\nDownload BepInEx 5.x (x64) and extract it into the Erenshor folder.",
-                            "BepInEx not detected",
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Warning);
+                        try
+                        {
+                            IsEnabled = false; // simple UI lock
+                            await BepInExInstaller.InstallLatestBepInEx5WindowsX64Async(
+                                root,
+                                progress: new Progress<string>(s => Status(s)),
+                                ct: CancellationToken.None);
+
+                            ver = Installer.ValidateBepInExOrThrow(root);
+                            Status($"BepInEx installed. ({ver ?? "version unknown"})");
+
+                            var runNow = MessageBox.Show(
+                                "BepInEx was installed.\n\n" +
+                                "Erenshor must be launched once so BepInEx can finish setup (create 'plugins' etc.).\n\n" +
+                                "Launch Erenshor now and close it automatically when setup completes?",
+                                "Run Erenshor now?",
+                                MessageBoxButton.YesNo,
+                                MessageBoxImage.Question);
+
+                            if (runNow == MessageBoxResult.Yes)
+                            {
+                                await LaunchErenshorForSetupAsync(root);
+                            }
+
+                            return; // done here
+                        }
+                        catch (Exception ex2)
+                        {
+                            MessageBox.Show(
+                                "Automatic install failed:\n" + ex2.Message,
+                                "BepInEx install",
+                                MessageBoxButton.OK,
+                                MessageBoxImage.Error);
+                            Status("BepInEx install failed: " + ex2.Message);
+                        }
+                        finally
+                        {
+                            IsEnabled = true;
+                        }
                     }
+
                     return;
                 }
 
                 var plugins = Installer.GetPluginsDir(root);
                 if (!Directory.Exists(plugins))
                 {
-                    var msg = "BepInEx/plugins folder not found. Run Erenshor once to complete BepInEx setup.";
-                    Status(msg);
-                    if (showPrompts)
+                    Status("BepInEx/plugins folder not found. Run Erenshor once to complete BepInEx setup.");
+
+                    var runNow = MessageBox.Show(
+                        "BepInEx is installed, but the 'BepInEx\\plugins' folder does not exist yet.\n\n" +
+                        "Erenshor must be launched once so BepInEx can complete its setup.\n\n" +
+                        "Launch Erenshor now and close it automatically when setup completes?",
+                        "Run Erenshor now?",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question);
+
+                    if (runNow == MessageBoxResult.Yes)
                     {
-                        MessageBox.Show(
-                            "The folder BepInEx\\plugins does not exist yet.\n\n" +
-                            "Run Erenshor once after installing BepInEx so it can create the full folder structure.",
-                            "Plugins folder missing",
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Information);
+                        await LaunchErenshorForSetupAsync(root);
                     }
                 }
                 else
@@ -197,12 +249,18 @@ namespace ErenshorModInstaller.Wpf
                         Status("BepInEx.cfg not found. Run Erenshor once to let BepInEx generate its configs.");
                         if (showPrompts)
                         {
-                            MessageBox.Show(
+                            var runNowCfg = MessageBox.Show(
                                 "BepInEx.cfg was not found.\n\n" +
-                                "You must run Erenshor once after installing BepInEx so it can create the config files and folder structure.",
-                                "BepInEx config missing",
-                                MessageBoxButton.OK,
-                                MessageBoxImage.Warning);
+                                "Launching Erenshor once will allow BepInEx to generate its config and folders.\n\n" +
+                                "Launch Erenshor now and close it automatically when setup completes?",
+                                "Run Erenshor now?",
+                                MessageBoxButton.YesNo,
+                                MessageBoxImage.Question);
+
+                            if (runNowCfg == MessageBoxResult.Yes)
+                            {
+                                await LaunchErenshorForSetupAsync(root);
+                            }
                         }
                         break;
 
@@ -430,18 +488,21 @@ namespace ErenshorModInstaller.Wpf
                     "BepInEx not detected",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
-                Status("Install blocked: BepInEx not installed.");
-                return;
             }
-
-            if (!Directory.Exists(Installer.GetPluginsDir(root)))
+            else if (!Directory.Exists(Installer.GetPluginsDir(root)))
             {
-                MessageBox.Show(
-                    "BepInEx\\plugins folder not found.\n\n" +
-                    "Run Erenshor once after installing BepInEx to complete setup, then try again.",
-                    "Plugins folder missing",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
+                var runNow = MessageBox.Show(
+                    "BepInEx is installed, but the 'BepInEx\\plugins' folder does not exist yet.\n\n" +
+                    "Erenshor must be launched once so BepInEx can complete its setup.\n\n" +
+                    "Launch Erenshor now and close it automatically when setup completes?",
+                    "Run Erenshor now?",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                if (runNow == MessageBoxResult.Yes)
+                {
+                    _ = LaunchErenshorForSetupAsync(root);
+                }
                 Status("Install blocked: run Erenshor once to create BepInEx\\plugins.");
                 return;
             }
@@ -457,12 +518,18 @@ namespace ErenshorModInstaller.Wpf
             var cfgStatus = Installer.GetBepInExConfigStatus(root, out var cfgPath);
             if (cfgStatus == Installer.BepInExConfigStatus.MissingConfig)
             {
-                MessageBox.Show(
+                var runNowCfg = MessageBox.Show(
                     "BepInEx.cfg was not found.\n\n" +
-                    "You must run Erenshor once after installing BepInEx so it can create the config files and folder structure.",
-                    "BepInEx config missing",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
+                    "Launching Erenshor once will allow BepInEx to generate its config and folders.\n\n" +
+                    "Launch Erenshor now and close it automatically when setup completes?",
+                    "Run Erenshor now?",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                if (runNowCfg == MessageBoxResult.Yes)
+                {
+                    _ = LaunchErenshorForSetupAsync(root);
+                }
                 Status("Install blocked: run Erenshor once to generate BepInEx.cfg.");
                 return;
             }
@@ -525,7 +592,6 @@ namespace ErenshorModInstaller.Wpf
 
                 Status($"Installed into: {RelativeToGame(result.TargetDir)}");
 
-                // Scan only for plugin dll; skip dependencies
                 VersionScanner.ModVersionInfo? scan = null;
 
                 if (!string.IsNullOrEmpty(result.PrimaryDll) && File.Exists(result.PrimaryDll))
@@ -588,18 +654,16 @@ namespace ErenshorModInstaller.Wpf
                 return;
             }
 
-            // Ensure index exists at least once (and is minimal)
             ModIndex.EnsureMinimalIndex(root);
             var index = ModIndex.Load(root);
 
-            // Folder mods: include ONLY folders containing a plugin dll
             var dirs = Directory.GetDirectories(plugins).OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase);
             foreach (var dir in dirs)
             {
                 VersionScanner.ModVersionInfo? scan = null;
                 try { scan = VersionScanner.ScanFolder(dir); } catch { }
 
-                if (scan == null || string.IsNullOrWhiteSpace(scan.Guid)) continue; // dependency-only folder, skip
+                if (scan == null || string.IsNullOrWhiteSpace(scan.Guid)) continue;
 
                 var dllPath = scan.DllPath;
                 var enabled = !dllPath.EndsWith(".disabled", StringComparison.OrdinalIgnoreCase);
@@ -616,7 +680,6 @@ namespace ErenshorModInstaller.Wpf
                 });
             }
 
-            // Top-level plugin DLLs: consider both enabled and disabled; show only if they’re plugins
             var enabledDlls = Directory.GetFiles(plugins, "*.dll", SearchOption.TopDirectoryOnly).ToArray();
             var disabledDlls = Directory.GetFiles(plugins, "*.dll.disabled", SearchOption.TopDirectoryOnly).ToArray();
 
@@ -636,7 +699,7 @@ namespace ErenshorModInstaller.Wpf
 
                 VersionScanner.ModVersionInfo? scan = null;
                 try { scan = VersionScanner.ScanDll(chosenPath); } catch { }
-                if (scan == null || string.IsNullOrWhiteSpace(scan.Guid)) continue; // dependency DLL: skip
+                if (scan == null || string.IsNullOrWhiteSpace(scan.Guid)) continue;
 
                 Mods.Add(new ModItem
                 {
@@ -651,6 +714,174 @@ namespace ErenshorModInstaller.Wpf
             }
 
             _isUpdatingList = false;
+        }
+
+        // ---------- BepInEx first-run orchestration ----------
+
+        private static bool IsBepInExSetupComplete(string root)
+        {
+            var plugins = Installer.GetPluginsDir(root);
+            var cfg = Path.Combine(Installer.GetBepInExDir(root), "config", "BepInEx.cfg");
+            return Directory.Exists(plugins) && File.Exists(cfg);
+        }
+
+        private async Task<bool> WaitForBepInExSetupAsync(string root, TimeSpan timeout, IProgress<string>? progress, CancellationToken ct)
+        {
+            var bepRoot = Installer.GetBepInExDir(root);
+            var cfgDir = Path.Combine(bepRoot, "config");
+            var cfgPath = Path.Combine(cfgDir, "BepInEx.cfg");
+            var plugins = Installer.GetPluginsDir(root);
+            var logPath = Path.Combine(bepRoot, "LogOutput.log");
+
+            var started = DateTime.UtcNow;
+            progress?.Report("Waiting for BepInEx first-run to finish…");
+
+            while ((DateTime.UtcNow - started) < timeout)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var hasPlugins = Directory.Exists(plugins);
+                var hasCfg = File.Exists(cfgPath);
+
+                var sawChainloader = false;
+                try
+                {
+                    if (File.Exists(logPath))
+                    {
+                        var text = File.ReadAllText(logPath);
+                        if (text.IndexOf("Chainloader", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                            text.IndexOf("BepInEx", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            sawChainloader = true;
+                        }
+                    }
+                }
+                catch { }
+
+                if ((hasPlugins && hasCfg) || (hasCfg && sawChainloader))
+                {
+                    progress?.Report("BepInEx setup detected.");
+                    return true;
+                }
+
+                await Task.Delay(1000, ct);
+            }
+
+            progress?.Report("Timed out waiting for BepInEx setup.");
+            return false;
+        }
+
+        private void TryCloseErenshorProcess(Process proc, string root)
+        {
+            try
+            {
+                if (proc.HasExited) return;
+
+                if (proc.MainWindowHandle != IntPtr.Zero)
+                {
+                    proc.CloseMainWindow();
+                    if (proc.WaitForExit(8000)) return;
+                }
+
+                var confirm = MessageBox.Show(
+                    "Erenshor is still running.\nWould you like to force close it now?",
+                    "Close Erenshor",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                if (confirm == MessageBoxResult.Yes)
+                {
+                    proc.Kill(entireProcessTree: true);
+                }
+            }
+            catch (Exception ex)
+            {
+                Status("Failed to close Erenshor: " + ex.Message);
+            }
+        }
+
+        private async Task RevalidateAndCongratulateAsync(string root)
+        {
+            try
+            {
+                var ver = Installer.ValidateBepInExOrThrow(root);
+
+                var plugins = Installer.GetPluginsDir(root);
+                var cfg = Path.Combine(Installer.GetBepInExDir(root), "config", "BepInEx.cfg");
+
+                if (Directory.Exists(plugins) && File.Exists(cfg))
+                {
+                    Status($"BepInEx OK ({ver ?? "version unknown"}).");
+                    RefreshMods();
+                    MessageBox.Show(
+                        "BepInEx has successfully installed.\n\nHappy modding!!",
+                        "All set!",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
+                else
+                {
+                    Status("BepInEx validation incomplete after first run.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Status("Post-run validation failed: " + ex.Message);
+            }
+        }
+
+        private async Task LaunchErenshorForSetupAsync(string root)
+        {
+            try
+            {
+                var exe = Path.Combine(root, "Erenshor.exe");
+                if (!File.Exists(exe))
+                {
+                    MessageBox.Show("Erenshor.exe not found in this folder.", "Launch Erenshor", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                IsEnabled = false;
+                Status("Launching Erenshor to complete BepInEx setup…");
+
+                var proc = Process.Start(new ProcessStartInfo
+                {
+                    FileName = exe,
+                    WorkingDirectory = root,
+                    UseShellExecute = true
+                });
+
+                if (proc == null)
+                {
+                    Status("Failed to start Erenshor.");
+                    return;
+                }
+
+                using var cts = new CancellationTokenSource();
+                var ok = await WaitForBepInExSetupAsync(root, timeout: TimeSpan.FromMinutes(3),
+                                                        progress: new Progress<string>(s => Status(s)),
+                                                        ct: cts.Token);
+
+                if (ok || IsBepInExSetupComplete(root))
+                {
+                    Status("BepInEx setup complete. Closing Erenshor…");
+                    TryCloseErenshorProcess(proc, root);
+                    await Task.Delay(1200);
+                    await RevalidateAndCongratulateAsync(root);
+                }
+                else
+                {
+                    Status("BepInEx setup not detected within timeout. You may close Erenshor manually and try again.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Status("Launch/setup flow failed: " + ex.Message);
+            }
+            finally
+            {
+                IsEnabled = true;
+            }
         }
     }
 }
