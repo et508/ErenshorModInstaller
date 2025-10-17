@@ -51,12 +51,32 @@
                        ItemsSource="{Binding Mods}">
                 <ListBox.ItemTemplate>
                   <DataTemplate>
-                    <StackPanel Orientation="Horizontal">
+                    <!-- Tooltip shows GUID -->
+                    <StackPanel Orientation="Horizontal" ToolTip="{Binding Guid}">
                       <CheckBox Margin="0,0,8,0"
                                 IsChecked="{Binding IsEnabled}"
                                 Checked="ModToggle_Checked"
                                 Unchecked="ModToggle_Unchecked"/>
                       <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center"/>
+
+                      <!-- version: ' · vX.Y.Z' (hidden if empty) -->
+                      <TextBlock Margin="4,0,0,0" Foreground="#999" VerticalAlignment="Center">
+                        <TextBlock.Style>
+                          <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="{Binding Version, StringFormat= · v{0}}"/>
+                            <Style.Triggers>
+                              <DataTrigger Binding="{Binding Version}" Value="">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                              </DataTrigger>
+                              <DataTrigger Binding="{Binding Version}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                              </DataTrigger>
+                            </Style.Triggers>
+                          </Style>
+                        </TextBlock.Style>
+                      </TextBlock>
+
+                      <!-- operational status (disabled/partial/no dll) -->
                       <TextBlock Margin="8,0,0,0" Foreground="#888" VerticalAlignment="Center"
                                  Text="{Binding StatusSuffix}"/>
                     </StackPanel>
@@ -79,7 +99,7 @@
         </Grid>
       </Grid>
     </Border>
-    
+
     <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Left">
       <TextBlock Text="v1.0.1" Foreground="DarkGray" VerticalAlignment="Bottom" Margin="0,0,0,-10"/>
     </StackPanel>
