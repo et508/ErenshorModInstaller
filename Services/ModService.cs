@@ -3,24 +3,21 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Windows;
-using ErenshorModInstaller.Wpf.Services.Abstractions;
 using ErenshorModInstaller.Wpf.Services.Models;
 
 namespace ErenshorModInstaller.Wpf.Services
 {
-    /// <summary>
-    /// Mod list projection + enable/disable + uninstall + install entry points.
-    /// </summary>
     public static class ModService
     {
+        // ---------- Listing (unchanged from your latest behavior) ----------
+
         public static List<ModItem> ListInstalledMods(string gameRoot)
         {
             var result = new List<ModItem>();
-
             var plugins = Installer.GetPluginsDir(gameRoot);
             if (!Directory.Exists(plugins)) return result;
 
-            // Folders that contain a plugin dll (skip pure dependency-only folders)
+            // Folder mods (only if folder contains a plugin dll)
             var dirs = Directory.GetDirectories(plugins).OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase);
             foreach (var dir in dirs)
             {
@@ -44,12 +41,12 @@ namespace ErenshorModInstaller.Wpf.Services
             }
 
             // Top-level plugin DLLs
-            var enabledDlls = Directory.GetFiles(plugins, "*.dll", SearchOption.TopDirectoryOnly).ToArray();
-            var disabledDlls = Directory.GetFiles(plugins, "*.dll.disabled", SearchOption.TopDirectoryOnly).ToArray();
+            var enabledDlls = Directory.GetFiles(plugins, "*.dll", SearchOption.TopDirectoryOnly);
+            var disabledDlls = Directory.GetFiles(plugins, "*.dll.disabled", SearchOption.TopDirectoryOnly);
 
             var allBaseNames = enabledDlls.Select(p => Path.GetFileNameWithoutExtension(p))
                                           .Union(disabledDlls.Select(p => Path.GetFileNameWithoutExtension(p)
-                                                                    .Replace(".dll", "", StringComparison.OrdinalIgnoreCase)))
+                                                                       .Replace(".dll", "", StringComparison.OrdinalIgnoreCase)))
                                           .Distinct(StringComparer.OrdinalIgnoreCase)
                                           .OrderBy(n => n, StringComparer.OrdinalIgnoreCase);
 
@@ -79,6 +76,8 @@ namespace ErenshorModInstaller.Wpf.Services
 
             return result;
         }
+
+        // ---------- Enable/disable (unchanged) ----------
 
         public static void Enable(ModItem item)
         {
@@ -110,7 +109,9 @@ namespace ErenshorModInstaller.Wpf.Services
             item.IsEnabled = false;
         }
 
-        public static bool Uninstall(string gameRoot, ModItem item, IStatusSink status)
+        // ---------- Uninstall (unchanged) ----------
+
+        public static bool Uninstall(string gameRoot, ModItem item, Abstractions.IStatusSink status)
         {
             try
             {
@@ -163,20 +164,72 @@ namespace ErenshorModInstaller.Wpf.Services
             }
         }
 
-        public static bool InstallAny(string gameRoot, string path, IStatusSink status)
+        // ---------- Install with version preflight (NEW) ----------
+
+        public static bool InstallAny(string gameRoot, string sourcePath, Abstractions.IStatusSink status)
         {
             try
             {
+                // 1) Preflight: figure out incoming mod GUID & Version (if any)
+                VersionScanner.ModVersionInfo? incoming = PreflightScan(sourcePath);
+
+                // 2) If we know the GUID, check ModIndex for an existing version and compare
+                if (incoming != null && !string.IsNullOrWhiteSpace(incoming.Guid))
+                {
+                    var index = ModIndex.Load(gameRoot);
+                    if (index.TryGetValue(incoming.Guid, out var existing))
+                    {
+                        var cmp = VersionUtil.Compare(incoming.Version, existing.Version);
+                        if (cmp < 0)
+                        {
+                            var resp = MessageBox.Show(
+                                $"You are about to install an OLDER version of '{existing.Name ?? incoming.Name ?? incoming.Guid}'.\n\n" +
+                                $"Installed: {existing.Version}\n" +
+                                $"Incoming:  {incoming.Version}\n\n" +
+                                "This will downgrade the mod. Continue?",
+                                "Confirm Downgrade",
+                                MessageBoxButton.YesNo,
+                                MessageBoxImage.Warning,
+                                MessageBoxResult.No);
+
+                            if (resp != MessageBoxResult.Yes)
+                            {
+                                status.Info("Install canceled (downgrade rejected).");
+                                return false;
+                            }
+                        }
+                        else if (cmp == 0)
+                        {
+                            // Same version: give a gentle confirmation to overwrite files
+                            var resp = MessageBox.Show(
+                                $"'{existing.Name ?? incoming.Name ?? incoming.Guid}' {existing.Version} is already installed.\n" +
+                                "Do you want to reinstall/overwrite?",
+                                "Reinstall same version?",
+                                MessageBoxButton.YesNo,
+                                MessageBoxImage.Question,
+                                MessageBoxResult.No);
+
+                            if (resp != MessageBoxResult.Yes)
+                            {
+                                status.Info("Install canceled.");
+                                return false;
+                            }
+                        }
+                        // If cmp > 0 (upgrade), proceed silently (your existing "file exists" prompts will still appear for .dlls)
+                    }
+                }
+
+                // 3) Perform the actual install (as before)
                 Installer.InstallResult result;
 
-                if (Directory.Exists(path))
+                if (Directory.Exists(sourcePath))
                 {
-                    result = Installer.InstallFromDirectory(gameRoot, path);
+                    result = Installer.InstallFromDirectory(gameRoot, sourcePath);
                 }
-                else if (path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+                else if (sourcePath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
                 {
                     var plugins = Installer.GetPluginsDir(gameRoot);
-                    var fileName = Path.GetFileName(path);
+                    var fileName = Path.GetFileName(sourcePath);
                     var target = Path.Combine(plugins, fileName);
                     if (File.Exists(target))
                     {
@@ -191,21 +244,21 @@ namespace ErenshorModInstaller.Wpf.Services
                             return false;
                         }
                     }
-                    result = Installer.InstallDll(gameRoot, path);
+                    result = Installer.InstallDll(gameRoot, sourcePath);
                 }
                 else
                 {
-                    result = Installer.InstallFromAny(gameRoot, path);
+                    result = Installer.InstallFromAny(gameRoot, sourcePath);
                 }
 
                 status.Info($"Installed into: {RelativeToGame(gameRoot, result.TargetDir)}");
 
-                // Index only the actual plugin dll (skip pure dependencies)
-                VersionScanner.ModVersionInfo? scan = null;
+                // 4) Index the actually-installed plugin (skip pure dependencies)
+                VersionScanner.ModVersionInfo? finalScan = null;
 
                 if (!string.IsNullOrEmpty(result.PrimaryDll) && File.Exists(result.PrimaryDll))
                 {
-                    scan = VersionScanner.ScanDll(result.PrimaryDll);
+                    finalScan = VersionScanner.ScanDll(result.PrimaryDll);
                 }
                 else
                 {
@@ -213,19 +266,19 @@ namespace ErenshorModInstaller.Wpf.Services
                     if (!string.Equals(result.TargetDir, plugins, StringComparison.OrdinalIgnoreCase)
                         && Directory.Exists(result.TargetDir))
                     {
-                        scan = VersionScanner.ScanFolder(result.TargetDir);
+                        finalScan = VersionScanner.ScanFolder(result.TargetDir);
                     }
-                    else if (File.Exists(path))
+                    else if (File.Exists(sourcePath))
                     {
-                        var installedFile = Path.Combine(plugins, Path.GetFileName(path));
+                        var installedFile = Path.Combine(plugins, Path.GetFileName(sourcePath));
                         if (File.Exists(installedFile))
-                            scan = VersionScanner.ScanDll(installedFile);
+                            finalScan = VersionScanner.ScanDll(installedFile);
                     }
                 }
 
-                if (scan != null && !string.IsNullOrWhiteSpace(scan.Guid))
+                if (finalScan != null && !string.IsNullOrWhiteSpace(finalScan.Guid))
                 {
-                    ModIndex.UpsertFromScan(gameRoot, scan);
+                    ModIndex.UpsertFromScan(gameRoot, finalScan);
                 }
 
                 if (!string.IsNullOrEmpty(result.Warning))
@@ -238,6 +291,32 @@ namespace ErenshorModInstaller.Wpf.Services
                 status.Error("Install failed: " + ex.Message);
                 return false;
             }
+        }
+
+        private static VersionScanner.ModVersionInfo? PreflightScan(string path)
+        {
+            try
+            {
+                if (Directory.Exists(path))
+                    return VersionScanner.ScanFolder(path);
+
+                if (path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+                    return VersionScanner.ScanDll(path);
+
+                // Archive: peek for the first plugin dll with a BepInPlugin attribute
+                if (path.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
+                    path.EndsWith(".7z", StringComparison.OrdinalIgnoreCase) ||
+                    path.EndsWith(".rar", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (Installer.TryScanArchiveForPlugin(path, out var info))
+                        return info;
+                }
+            }
+            catch
+            {
+                // ignore scan failures — we’ll just proceed without version gating
+            }
+            return null;
         }
 
         private static string RelativeToGame(string root, string fullPath)
