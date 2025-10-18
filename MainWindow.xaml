@@ -47,38 +47,23 @@
 
           <GroupBox Header="Installed Mods (BepInEx/plugins)" Grid.Column="0">
             <DockPanel LastChildFill="True">
-              <ListBox x:Name="ModsList" Margin="6" HorizontalContentAlignment="Stretch"
-                       ItemsSource="{Binding Mods}">
+              <ListBox x:Name="ModsList"
+                       Margin="6"
+                       HorizontalContentAlignment="Stretch"
+                       ItemsSource="{Binding Mods}"
+                       PreviewMouseRightButtonDown="ModsList_PreviewMouseRightButtonDown">
                 <ListBox.ItemTemplate>
                   <DataTemplate>
-                    <!-- Tooltip shows GUID -->
-                    <StackPanel Orientation="Horizontal" ToolTip="{Binding Guid}">
+                    <StackPanel Orientation="Horizontal">
                       <CheckBox Margin="0,0,8,0"
                                 IsChecked="{Binding IsEnabled}"
                                 Checked="ModToggle_Checked"
                                 Unchecked="ModToggle_Unchecked"/>
-                      <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center"/>
-
-                      <!-- version: ' · vX.Y.Z' (hidden if empty) -->
-                      <TextBlock Margin="4,0,0,0" Foreground="#999" VerticalAlignment="Center">
-                        <TextBlock.Style>
-                          <Style TargetType="TextBlock">
-                            <Setter Property="Text" Value="{Binding Version, StringFormat= · v{0}}"/>
-                            <Style.Triggers>
-                              <DataTrigger Binding="{Binding Version}" Value="">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                              </DataTrigger>
-                              <DataTrigger Binding="{Binding Version}" Value="{x:Null}">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                              </DataTrigger>
-                            </Style.Triggers>
-                          </Style>
-                        </TextBlock.Style>
-                      </TextBlock>
-
-                      <!-- operational status (disabled/partial/no dll) -->
+                      <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" ToolTip="{Binding Guid}"/>
                       <TextBlock Margin="8,0,0,0" Foreground="#888" VerticalAlignment="Center"
                                  Text="{Binding StatusSuffix}"/>
+                      <TextBlock Margin="6,0,0,0" Foreground="#999" VerticalAlignment="Center"
+                                 Text="{Binding Version}"/>
                     </StackPanel>
                   </DataTemplate>
                 </ListBox.ItemTemplate>

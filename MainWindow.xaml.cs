@@ -5,6 +5,9 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using ErenshorModInstaller.Wpf.Services;
 using ErenshorModInstaller.Wpf.Services.Abstractions;
@@ -223,6 +226,60 @@ namespace ErenshorModInstaller.Wpf
                 foreach (var p in paths) InstallAny(p);
             }
             catch (Exception ex) { Error("Drop install failed: " + ex.Message); }
+        }
+
+        // ---------- Right-click switch-version menu ----------
+
+        private static T? FindAncestor<T>(DependencyObject? current) where T : DependencyObject
+        {
+            while (current != null)
+            {
+                if (current is T match) return match;
+                current = VisualTreeHelper.GetParent(current);
+            }
+            return null;
+        }
+
+        private void ModsList_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            try
+            {
+                var element = e.OriginalSource as DependencyObject;
+                var lbi = FindAncestor<ListBoxItem>(element);
+                if (lbi == null) return;
+
+                lbi.IsSelected = true;
+
+                var item = lbi.DataContext as ModItem;
+                if (item == null) return;
+
+                var root = GamePathBox.Text;
+                var alts = ModService.GetAlternateVersions(root, item);
+                if (alts == null || alts.Count == 0)
+                {
+                    lbi.ContextMenu = null;
+                    return;
+                }
+
+                var menu = new ContextMenu();
+                foreach (var opt in alts)
+                {
+                    var mi = new MenuItem { Header = $"Switch to {opt.Label}", Tag = opt };
+                    mi.Click += (_, __) =>
+                    {
+                        if (ModService.SwitchToVersion(root, item, opt, this))
+                            RefreshMods();
+                    };
+                    menu.Items.Add(mi);
+                }
+
+                lbi.ContextMenu = menu;
+                menu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+                menu.IsOpen = true;
+
+                e.Handled = true;
+            }
+            catch { }
         }
 
         // ---------- Install orchestration ----------
