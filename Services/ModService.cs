@@ -149,53 +149,220 @@ namespace ErenshorModInstaller.Wpf.Services
             item.IsEnabled = false;
         }
 
+        /// <summary>
+        /// Multi-version aware uninstall:
+        /// - If no stored versions: simple confirm + remove active.
+        /// - If stored versions exist: prompt to uninstall all OR launch VersionUninstallDialog to pick.
+        /// - Supports picking one stored version to keep as active (switch first), then removal.
+        /// </summary>
         public static bool Uninstall(string root, ModItem item, IStatusSink sink)
-        {
-            try
-            {
-                var plugins = Installer.GetPluginsDir(root);
+{
+    try
+    {
+        var plugins = Installer.GetPluginsDir(root);
+        var guid = item.Guid;
+        var storeRoot = VersionStoreForGuid(root, guid);
+        var versions = Directory.Exists(storeRoot)
+            ? Directory.GetDirectories(storeRoot).Select(Path.GetFileName)!.ToList()
+            : new List<string>();
 
+        // No stored versions => simple confirm
+        if (versions.Count == 0)
+        {
+            if (item.IsFolder)
+            {
+                var target = Path.Combine(plugins, item.FolderName!);
+                if (!Directory.Exists(target)) { sink.Warn("Folder not found: " + item.FolderName); return false; }
+
+                var confirm = MessageBox.Show(
+                    $"Remove mod folder '{item.FolderName}'?",
+                    "Confirm Uninstall",
+                    MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+                if (confirm != MessageBoxResult.Yes) return false;
+
+                TryDeleteDirectory(target);
+                sink.Info($"Removed: ./BepInEx/plugins/{item.FolderName}");
+                return true;
+            }
+            else
+            {
+                var baseDll = Path.Combine(plugins, item.DllFileName!);
+                var dllPath = File.Exists(baseDll) ? baseDll
+                            : (File.Exists(baseDll + ".disabled") ? baseDll + ".disabled" : null);
+                if (dllPath == null) { sink.Warn("File not found: " + item.DllFileName); return false; }
+
+                var confirm = MessageBox.Show(
+                    $"Remove DLL '{Path.GetFileName(dllPath)}' from plugins?",
+                    "Confirm Uninstall",
+                    MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+                if (confirm != MessageBoxResult.Yes) return false;
+
+                File.Delete(dllPath);
+                sink.Info($"Removed: ./BepInEx/plugins/{Path.GetFileName(dllPath)}");
+                return true;
+            }
+        }
+
+        // Multi-version choices
+        var msg =
+            $"Multiple versions of '{item.DisplayName}' exist.\n\n" +
+            $"Active: {item.Version}\n" +
+            $"Stored: {string.Join(", ", versions.OrderBy(v => v, StringComparer.OrdinalIgnoreCase))}\n\n" +
+            "Yes    = Uninstall ALL versions\n" +
+            "No     = Pick versions to remove / optionally keep one active\n" +
+            "Cancel = Abort";
+
+        var res = MessageBox.Show(msg, "Uninstall – multiple versions",
+                                  MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+        if (res == MessageBoxResult.Cancel) return false;
+
+        if (res == MessageBoxResult.Yes)
+        {
+            // Remove active
+            if (item.IsFolder)
+            {
+                var target = Path.Combine(plugins, item.FolderName!);
+                TryDeleteDirectory(target);
+            }
+            else
+            {
+                var baseDll = Path.Combine(plugins, item.DllFileName!);
+                var dllPath = File.Exists(baseDll) ? baseDll
+                            : (File.Exists(baseDll + ".disabled") ? baseDll + ".disabled" : null);
+                if (dllPath != null) File.Delete(dllPath);
+            }
+
+            // Remove store
+            TryDeleteDirectory(storeRoot);
+            sink.Info($"Removed all versions of {item.DisplayName}.");
+            return true;
+        }
+
+        // Picker dialog
+        var picker = new VersionUninstallDialog(item.DisplayName, item.Version, versions);
+        if (picker.ShowDialog() != true) return false;
+
+        var removeActive = picker.RemoveActive;
+        var removeStored = new HashSet<string>(picker.StoredVersionsToRemove, StringComparer.OrdinalIgnoreCase);
+        var keepAsActive = picker.KeepAsActiveVersion; // null or one of versions
+
+        // If we are switching to a stored version, do that first and don't delete active after.
+        bool switchedToStored = false;
+
+        if (!string.IsNullOrWhiteSpace(keepAsActive) &&
+            (!string.Equals(keepAsActive, item.Version, StringComparison.OrdinalIgnoreCase) || removeActive))
+        {
+            var choice = FindStoredChoice(root, item, keepAsActive);
+            if (choice != null)
+            {
+                // Move stored -> active and enable; this removes previous active on disk as part of the move
                 if (item.IsFolder)
                 {
-                    var target = Path.Combine(plugins, item.FolderName!);
-                    if (!Directory.Exists(target)) { sink.Warn("Folder not found: " + item.FolderName); return false; }
-
-                    var confirm = MessageBox.Show(
-                        $"Remove mod folder '{item.FolderName}'?",
-                        "Confirm Uninstall",
-                        MessageBoxButton.YesNo, MessageBoxImage.Question);
-
-                    if (confirm != MessageBoxResult.Yes) return false;
-
-                    TryDeleteDirectory(target);
-                    sink.Info($"Removed: ./BepInEx/plugins/{item.FolderName}");
-                    return true;
+                    var activeFolder = Path.Combine(plugins, item.FolderName ?? "");
+                    TryDeleteDirectory(activeFolder);
+                    MoveDirectoryRobust(choice.StoredPath, activeFolder);
+                    EnableAllDllsRecursively(activeFolder);
                 }
                 else
                 {
-                    var baseDll = Path.Combine(plugins, item.DllFileName!);
-                    var dllPath = File.Exists(baseDll) ? baseDll
-                                : (File.Exists(baseDll + ".disabled") ? baseDll + ".disabled" : null);
-                    if (dllPath == null) { sink.Warn("File not found: " + item.DllFileName); return false; }
+                    var dllName = item.DllFileName ?? Path.GetFileName(item.PluginDllFullPath) ?? "plugin.dll";
+                    var activePath = Path.Combine(plugins, dllName);
+                    var activeDisabled = activePath + ".disabled";
+                    if (File.Exists(activePath)) File.Delete(activePath);
+                    if (File.Exists(activeDisabled)) File.Delete(activeDisabled);
 
-                    var confirm = MessageBox.Show(
-                        $"Remove DLL '{Path.GetFileName(dllPath)}' from plugins?",
-                        "Confirm Uninstall",
-                        MessageBoxButton.YesNo, MessageBoxImage.Question);
-
-                    if (confirm != MessageBoxResult.Yes) return false;
-
-                    File.Delete(dllPath);
-                    sink.Info($"Removed: ./BepInEx/plugins/{Path.GetFileName(dllPath)}");
-                    return true;
+                    // Stored path may be *.dll.disabled; move to *.dll
+                    if (choice.StoredPath.EndsWith(".disabled", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (File.Exists(activePath)) File.Delete(activePath);
+                        File.Move(choice.StoredPath, activePath);
+                    }
+                    else
+                    {
+                        if (File.Exists(activePath)) File.Delete(activePath);
+                        File.Move(choice.StoredPath, activePath);
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                sink.Error("Uninstall failed: " + ex.Message);
-                return false;
+
+                switchedToStored = true;
+                removeActive = false;
+                removeStored.Remove(keepAsActive);
+                CleanupIfEmpty(Path.Combine(storeRoot, keepAsActive));
             }
         }
+
+        // Remove selected stored versions
+        foreach (var v in removeStored)
+        {
+            var vDir = Path.Combine(storeRoot, v);
+            TryDeleteDirectory(vDir);
+        }
+
+        // Remove active only if requested and we didn't switch
+        if (removeActive && !switchedToStored)
+        {
+            if (item.IsFolder)
+            {
+                var target = Path.Combine(plugins, item.FolderName!);
+                TryDeleteDirectory(target);
+            }
+            else
+            {
+                var baseDll = Path.Combine(plugins, item.DllFileName!);
+                var dllPath = File.Exists(baseDll) ? baseDll
+                            : (File.Exists(baseDll + ".disabled") ? baseDll + ".disabled" : null);
+                if (dllPath != null) File.Delete(dllPath);
+            }
+        }
+
+        // -------- FINAL TIDY: If only the kept-active version remains in the store, remove it too --------
+        string? keptActiveVersion = null;
+        if (switchedToStored && !string.IsNullOrWhiteSpace(keepAsActive))
+            keptActiveVersion = keepAsActive;
+        else if (!removeActive)
+            keptActiveVersion = item.Version;
+
+        if (Directory.Exists(storeRoot))
+        {
+            var remaining = Directory.GetDirectories(storeRoot)
+                                     .Select(Path.GetFileName)
+                                     .Where(n => !string.IsNullOrWhiteSpace(n))
+                                     .ToList();
+
+            if (remaining.Count == 0)
+            {
+                // Nothing left: remove the store root
+                TryDeleteDirectory(storeRoot);
+            }
+            else if (keptActiveVersion != null &&
+                     remaining.Count == 1 &&
+                     string.Equals(remaining[0], keptActiveVersion, StringComparison.OrdinalIgnoreCase))
+            {
+                // Only the active version's folder remains in store -> remove it and then the store root if empty
+                var onlyDir = Path.Combine(storeRoot, remaining[0]!);
+                TryDeleteDirectory(onlyDir);
+                CleanupIfEmpty(storeRoot);
+            }
+        }
+        // -----------------------------------------------------------------------------------------------
+
+        // Hide store again if it remains
+        TryHide(Path.Combine(plugins, ".versions"));
+        TryHide(storeRoot);
+
+        sink.Info("Uninstall operation completed.");
+        return true;
+    }
+    catch (Exception ex)
+    {
+        sink.Error("Uninstall failed: " + ex.Message);
+        return false;
+    }
+}
+
+
 
         // ---------- Install (with downgrade prompt: Yes=Overwrite, No=Keep both (stash incoming), Cancel) ----------
 
@@ -753,6 +920,25 @@ namespace ErenshorModInstaller.Wpf.Services
                     }
                     catch { /* ignore per-file errors */ }
                 }
+            }
+            catch { }
+        }
+
+        // ---------- tiny helpers used by Uninstall ----------
+
+        private static AlternateVersion? FindStoredChoice(string root, ModItem item, string version)
+        {
+            return GetAlternateVersions(root, item).FirstOrDefault(a =>
+                string.Equals(a.Version, version, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static void CleanupIfEmpty(string dir)
+        {
+            try
+            {
+                if (!Directory.Exists(dir)) return;
+                if (!Directory.EnumerateFileSystemEntries(dir).Any())
+                    Directory.Delete(dir, false);
             }
             catch { }
         }
