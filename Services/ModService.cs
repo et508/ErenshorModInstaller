@@ -5,6 +5,7 @@ using System.Linq;
 using System.Windows;
 using ErenshorModInstaller.Wpf.Services.Abstractions;
 using ErenshorModInstaller.Wpf.Services.Models;
+using ErenshorModInstaller.Wpf.UI;
 
 namespace ErenshorModInstaller.Wpf.Services
 {
@@ -161,6 +162,7 @@ namespace ErenshorModInstaller.Wpf.Services
             {
                 var plugins = Installer.GetPluginsDir(root);
                 var guid = item.Guid;
+                var name = item.DisplayName;
                 var storeRoot = VersionStoreForGuid(root, guid);
                 var versions = Directory.Exists(storeRoot)
                     ? Directory.GetDirectories(storeRoot).Select(Path.GetFileName)!.ToList()
@@ -169,17 +171,14 @@ namespace ErenshorModInstaller.Wpf.Services
                 // No stored versions => simple confirm
                 if (versions.Count == 0)
                 {
+                    // One clear, unified prompt:
+                    var confirm = Prompts.ShowConfirmUninstallSingle(Application.Current?.MainWindow!, item.DisplayName);
+                    if (confirm != PromptResult.Primary) return false;
+
                     if (item.IsFolder)
                     {
                         var target = Path.Combine(plugins, item.FolderName!);
                         if (!Directory.Exists(target)) { sink.Warn("Folder not found: " + item.FolderName); return false; }
-
-                        var confirm = MessageBox.Show(
-                            $"Remove mod folder '{item.FolderName}'?",
-                            "Confirm Uninstall",
-                            MessageBoxButton.YesNo, MessageBoxImage.Question);
-
-                        if (confirm != MessageBoxResult.Yes) return false;
 
                         TryDeleteDirectory(target);
                         sink.Info($"Removed: ./BepInEx/plugins/{item.FolderName}");
@@ -189,15 +188,8 @@ namespace ErenshorModInstaller.Wpf.Services
                     {
                         var baseDll = Path.Combine(plugins, item.DllFileName!);
                         var dllPath = File.Exists(baseDll) ? baseDll
-                                    : (File.Exists(baseDll + ".disabled") ? baseDll + ".disabled" : null);
+                            : (File.Exists(baseDll + ".disabled") ? baseDll + ".disabled" : null);
                         if (dllPath == null) { sink.Warn("File not found: " + item.DllFileName); return false; }
-
-                        var confirm = MessageBox.Show(
-                            $"Remove DLL '{Path.GetFileName(dllPath)}' from plugins?",
-                            "Confirm Uninstall",
-                            MessageBoxButton.YesNo, MessageBoxImage.Question);
-
-                        if (confirm != MessageBoxResult.Yes) return false;
 
                         File.Delete(dllPath);
                         sink.Info($"Removed: ./BepInEx/plugins/{Path.GetFileName(dllPath)}");
@@ -206,19 +198,10 @@ namespace ErenshorModInstaller.Wpf.Services
                 }
 
                 // Multi-version choices
-                var msg =
-                    $"Multiple versions of '{item.DisplayName}' exist.\n\n" +
-                    $"Active: {item.Version}\n" +
-                    $"Stored: {string.Join(", ", versions.OrderBy(v => v, StringComparer.OrdinalIgnoreCase))}\n\n" +
-                    "Yes    = Uninstall ALL versions\n" +
-                    "No     = Pick versions to remove / optionally keep one active\n" +
-                    "Cancel = Abort";
+                var res = Prompts.ShowConfirmUninstallMulti(Application.Current?.MainWindow!, item.DisplayName, item.Version, versions);
+                if (res == PromptResult.Cancel) return false;
 
-                var res = MessageBox.Show(msg, "Uninstall – multiple versions",
-                                          MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
-                if (res == MessageBoxResult.Cancel) return false;
-
-                if (res == MessageBoxResult.Yes)
+                if (res == PromptResult.Primary)
                 {
                     // Remove active
                     if (item.IsFolder)
@@ -395,29 +378,21 @@ namespace ErenshorModInstaller.Wpf.Services
                         var cmp = CompareSemVerSafe(incoming.Version, installed.Version);
                         if (cmp < 0)
                         {
-                            var prompt =
-                                $"A newer version of '{installed.DisplayName}' is already installed.\n\n" +
-                                $"Installed: {installed.Version}\n" +
-                                $"Incoming:  {incoming.Version}\n\n" +
-                                "Choose an option:\n" +
-                                "Yes    = Overwrite with the incoming (downgrade)\n" +
-                                "No     = Keep both (store incoming to hidden versions)\n" +
-                                "Cancel = Cancel install";
+                            var res = Prompts.ShowDowngrade(Application.Current?.MainWindow!,
+                                installed.DisplayName, installed.Version, incoming.Version);
 
-                            var res = MessageBox.Show(prompt, "Lower version detected",
-                                                      MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
-
-                            if (res == MessageBoxResult.Cancel) { sink.Info("Install canceled."); return false; }
-
-                            if (res == MessageBoxResult.No)
+                            if (res == PromptResult.Cancel)
                             {
-                                // Move incoming payload into store (do NOT install)
+                                sink.Info("Install canceled.");
+                                return false;
+                            }
+                            if (res == PromptResult.Secondary) // Keep both
+                            {
                                 StashIncomingOnly_Move(root, installed, path, incoming, sink);
                                 sink.Info($"Stored alternate version {incoming.Version} for {installed.DisplayName}. Right-click the mod to switch.");
                                 return true;
                             }
-
-                            // Overwrite/downgrade: move current active to store, then proceed to install incoming
+                            // Primary => Overwrite
                             StashCurrentActive_Move(root, installed, sink);
                         }
                         else if (cmp > 0)

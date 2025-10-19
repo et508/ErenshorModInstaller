@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using ErenshorModInstaller.Wpf.Services.Abstractions;
+using ErenshorModInstaller.Wpf.UI;
 
 namespace ErenshorModInstaller.Wpf.Services
 {
@@ -32,14 +33,9 @@ namespace ErenshorModInstaller.Wpf.Services
             {
                 status?.Warn(ex.Message);
 
-                var doInstall = MessageBox.Show(
-                    "BepInEx is not detected.\n\n" +
-                    "Would you like to automatically download and install BepInEx 5 (x64) into your Erenshor folder?",
-                    "BepInEx not detected",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question);
+                var doInstall = Prompts.ShowBepInExInstall();
 
-                if (doInstall != MessageBoxResult.Yes) return false;
+                if (doInstall != PromptResult.Primary) return false;
 
                 try
                 {
@@ -57,7 +53,7 @@ namespace ErenshorModInstaller.Wpf.Services
                 {
                     MessageBox.Show(
                         "Automatic install failed:\n" + ex2.Message,
-                        "BepInEx install",
+                        "BepInEx Install Failed",
                         MessageBoxButton.OK,
                         MessageBoxImage.Error);
                     status?.Error("BepInEx install failed: " + ex2.Message);
@@ -69,17 +65,11 @@ namespace ErenshorModInstaller.Wpf.Services
             var plugins = Installer.GetPluginsDir(gameRoot);
             if (!Directory.Exists(plugins))
             {
-                status?.Warn("BepInEx/plugins folder not found. Run Erenshor once to complete BepInEx setup.");
+                status?.Warn("Run Erenshor once to complete BepInEx setup.");
 
-                var runNow = MessageBox.Show(
-                    "BepInEx is installed, but the 'BepInEx\\plugins' folder does not exist yet.\n\n" +
-                    "Erenshor must be launched once so BepInEx can complete its setup.\n\n" +
-                    "Launch Erenshor now and close it automatically when setup completes?",
-                    "Run Erenshor now?",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question);
+                var runNow = Prompts.ShowBepInExSetup();
 
-                if (runNow == MessageBoxResult.Yes)
+                if (runNow == PromptResult.Primary)
                 {
                     await LaunchErenshorForSetupAsync(gameRoot, status);
                 }
@@ -97,17 +87,11 @@ namespace ErenshorModInstaller.Wpf.Services
                     break;
 
                 case Installer.BepInExConfigStatus.MissingConfig:
-                    status?.Warn("BepInEx.cfg not found. Run Erenshor once to let BepInEx generate its configs.");
+                    status?.Warn("Run Erenshor once to complete BepInEx setup.");
                     {
-                        var runNowCfg = MessageBox.Show(
-                            "BepInEx.cfg was not found.\n\n" +
-                            "Launching Erenshor once will allow BepInEx to generate its config and folders.\n\n" +
-                            "Launch Erenshor now and close it automatically when setup completes?",
-                            "Run Erenshor now?",
-                            MessageBoxButton.YesNo,
-                            MessageBoxImage.Question);
+                        var runNowCfg = Prompts.ShowBepInExSetup();
 
-                        if (runNowCfg == MessageBoxResult.Yes)
+                        if (runNowCfg == PromptResult.Primary)
                         {
                             await LaunchErenshorForSetupAsync(gameRoot, status);
                         }
@@ -118,15 +102,9 @@ namespace ErenshorModInstaller.Wpf.Services
                 case Installer.BepInExConfigStatus.WrongValue:
                     status?.Warn("Warning: HideManagerGameObject should be TRUE for Erenshor mods to work correctly.");
 
-                    var fix = MessageBox.Show(
-                        $"BepInEx.cfg found at:\n{cfgPath}\n\n" +
-                        "Setting 'HideManagerGameObject' should be TRUE for Erenshor mods to work correctly.\n" +
-                        "Would you like me to set it to true?",
-                        "BepInEx config",
-                        MessageBoxButton.YesNo,
-                        MessageBoxImage.Question);
+                    var fix = Prompts.ShowBepInExConfigFix();
 
-                    if (fix == MessageBoxResult.Yes)
+                    if (fix == PromptResult.Primary)
                     {
                         try
                         {
@@ -250,13 +228,9 @@ namespace ErenshorModInstaller.Wpf.Services
                     if (proc.WaitForExit(8000)) return;
                 }
 
-                var confirm = MessageBox.Show(
-                    "Erenshor is still running.\nWould you like to force close it now?",
-                    "Close Erenshor",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question);
+                var confirm = Prompts.ShowErenshorForceClose();
 
-                if (confirm == MessageBoxResult.Yes)
+                if (confirm == PromptResult.Primary)
                 {
                     proc.Kill(entireProcessTree: true);
                 }
@@ -278,11 +252,7 @@ namespace ErenshorModInstaller.Wpf.Services
                 if (Directory.Exists(plugins) && File.Exists(cfg))
                 {
                     status?.Info($"BepInEx OK ({ver ?? "version unknown"}).");
-                    MessageBox.Show(
-                        "BepInEx has successfully installed.\n\nHappy modding!!",
-                        "All set!",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
+                    Prompts.ShowBepInExSuccess();
                 }
                 else
                 {

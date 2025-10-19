@@ -1,0 +1,60 @@
+<Window x:Class="ErenshorModInstaller.Wpf.UI.PromptDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{Binding TitleText}"
+        Height="220" Width="460"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        WindowStyle="SingleBorderWindow"
+        ShowInTaskbar="False">
+  <Grid Margin="16">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="8"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="12"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+      
+    <!-- Message -->
+    <TextBlock Grid.Row="2"
+               Text="{Binding MessageText}"
+               TextWrapping="Wrap"
+               Margin="0,0,0,4"/>
+
+    <!-- Detail (optional; collapses if empty) -->
+    <TextBlock Grid.Row="2"
+               Text="{Binding DetailText}"
+               TextWrapping="Wrap"
+               Foreground="#666"
+               Margin="0,28,0,0"
+               Visibility="{Binding DetailVisibility}"/>
+
+    <!-- Buttons -->
+    <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" >
+        <!-- Primary -->
+        <Button Content="{Binding PrimaryText}"
+                Width="110" Margin="0,0,8,0"
+                Visibility="{Binding PrimaryVisibility}"
+                IsDefault="{Binding PrimaryIsDefault}"
+                Click="OnPrimary"/>
+        <!-- Secondary -->
+        <Button Content="{Binding SecondaryText}"
+                Width="110" Margin="0,0,8,0"
+                Visibility="{Binding SecondaryVisibility}"
+                IsDefault="{Binding SecondaryIsDefault}"
+                Click="OnSecondary"/>
+        <!-- Destructive -->
+        <Button Content="{Binding DestructiveText}"
+                Width="110" Margin="0,0,8,0"
+                Visibility="{Binding DestructiveVisibility}"
+                Click="OnDestructive"/>
+      <!-- Cancel -->
+      <Button Content="{Binding CancelText}"
+              Width="110"
+              Visibility="{Binding CancelVisibility}"
+              IsCancel="True"
+              Click="OnCancel"/>
+    </StackPanel>
+  </Grid>
+</Window>

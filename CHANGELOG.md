@@ -13,11 +13,15 @@
   - You can install multiple versions of a mod. Installing the same way you would install any other mod.
   - When detected that it is a different version, a prompt will be displayed:
     - If Higher Version: Will ask if you want to upgrade or keep both.
-    - If Lower Version: Will ask if want to downgrade or keep both.
+    - If Lower Version: Will ask if want to overwrite or keep both.
     - If Same Version: Will just overwrite old.
   - When uninstalling a mod with multiple version, a prompt will show: Uninstall All or Select Versions.
     - If Select Versions: A window will show and allow you to select what versions to uninstall.
     - If removing the active version, you will be able to select what version you want active.
+
+### Prompt Windows
+- Added custom prompt windows instead of using system MessageBox. 
+  - All prompts should be the custom ones, if any are missed please report it. 
 
 
 ## [1.0.1] - 10/15/2025

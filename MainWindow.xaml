@@ -45,7 +45,7 @@
             <ColumnDefinition Width="240"/>
           </Grid.ColumnDefinitions>
 
-          <GroupBox Header="Installed Mods (BepInEx/plugins)" Grid.Column="0">
+          <GroupBox Header="Installed Mods" Grid.Column="0">
             <DockPanel LastChildFill="True">
               <ListBox x:Name="ModsList"
                        Margin="6"
