@@ -1,7 +1,10 @@
-## [1.1.0] - TBD
+## [1.1.0] - 10/20/2025
 ### Version Detection
 - Now detects what version of the ```.dll``` is installed.
-  - Will create a small ModIndex file under ```BepInEx/ErenshorModInstaller/``` to track a mods GUID, Name, and Version. 
+  - Will create a small ModIndex file under ```BepInEx/ErenshorModInstaller/``` to track a mods GUID, Name, and Version.
+
+### EMI Update Notice
+- A prompt will now appear if an update for EMI is available.
 
 ### BepInEx Install
 - Upon first run, if BepInEx is not installed, will prompt if you would like Mod Installer to download and install BepInEx for you.

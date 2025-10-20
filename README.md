@@ -22,8 +22,8 @@ Easy to use tool to simplify the installation and use of mods for Erenshor.
 
 ### Multi-Version Mod Support
 - If you like to keep multiple versions of a mod around, support has been added for this.
-  - Simple install the mod in the same way you would normally and a prompt will appear. Selecting ```Keep Both``` with install the mod and place it in the ```"Store"```.
-  - Right clicking on the mod in the ```"Installed Mods"``` list will show a menu to select the active version. 
-- When uninstalling a mod with multiple versions in the ```"Store"``` a prompt will appear. 
+  - Simple install the mod in the same way you would normally and a prompt will appear. Selecting ```Keep Both``` with install the mod and place it in the ```Store```.
+  - Right clicking on the mod in the ```Installed Mods``` list will show a menu to select the active version. 
+- When uninstalling a mod with multiple versions in the ```Store``` a prompt will appear. 
   - Selecting ```All``` uninstalls all versions.
   - Selecting ```Pick Version``` will display a window to pick what versions to keep and what versions to uninstall, as well as what version to have as the active version. 
