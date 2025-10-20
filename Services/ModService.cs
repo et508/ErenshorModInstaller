@@ -21,15 +21,12 @@ namespace ErenshorModInstaller.Wpf.Services
             public string? FolderName { get; init; }
         }
 
-        // ---------- Listing installed mods (plugins root + folder mods) ----------
-
         public static List<ModItem> ListInstalledMods(string root)
         {
             var list = new List<ModItem>();
             var plugins = Installer.GetPluginsDir(root);
             if (!Directory.Exists(plugins)) return list;
-
-            // Folder mods (top-level only), skip hidden/dot folders like ".versions"
+            
             var dirs = Directory.GetDirectories(plugins)
                                 .Where(d => !IsHiddenOrDotFolder(d))
                                 .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase);
@@ -53,8 +50,7 @@ namespace ErenshorModInstaller.Wpf.Services
                     IsEnabled = enabled
                 });
             }
-
-            // Top-level plugin DLLs (enabled + disabled)
+            
             var enabledDlls = Directory.GetFiles(plugins, "*.dll", SearchOption.TopDirectoryOnly).ToArray();
             var disabledDlls = Directory.GetFiles(plugins, "*.dll.disabled", SearchOption.TopDirectoryOnly).ToArray();
 
@@ -91,8 +87,6 @@ namespace ErenshorModInstaller.Wpf.Services
             return list;
         }
 
-        // ---------- Enable/Disable/Uninstall ----------
-
         public static void Enable(ModItem item)
         {
             if (item == null) return;
@@ -113,7 +107,6 @@ namespace ErenshorModInstaller.Wpf.Services
                 var enabledPath = path[..^(".disabled".Length)];
                 if (File.Exists(path))
                 {
-                    // .NET 8 has overwrite param; still guard for older runtimes
                     if (File.Exists(enabledPath)) File.Delete(enabledPath);
                     File.Move(path, enabledPath);
                     item.PluginDllFullPath = enabledPath;
@@ -149,13 +142,7 @@ namespace ErenshorModInstaller.Wpf.Services
             }
             item.IsEnabled = false;
         }
-
-        /// <summary>
-        /// Multi-version aware uninstall:
-        /// - If no stored versions: simple confirm + remove active.
-        /// - If stored versions exist: prompt to uninstall all OR launch VersionUninstallDialog to pick.
-        /// - Supports picking one stored version to keep as active (switch first), then removal.
-        /// </summary>
+        
         public static bool Uninstall(string root, ModItem item, IStatusSink sink)
         {
             try
@@ -167,11 +154,9 @@ namespace ErenshorModInstaller.Wpf.Services
                 var versions = Directory.Exists(storeRoot)
                     ? Directory.GetDirectories(storeRoot).Select(Path.GetFileName)!.ToList()
                     : new List<string>();
-
-                // No stored versions => simple confirm
+                
                 if (versions.Count == 0)
                 {
-                    // One clear, unified prompt:
                     var confirm = Prompts.ShowConfirmUninstallSingle(Application.Current?.MainWindow!, item.DisplayName);
                     if (confirm != PromptResult.Primary) return false;
 
@@ -196,14 +181,12 @@ namespace ErenshorModInstaller.Wpf.Services
                         return true;
                     }
                 }
-
-                // Multi-version choices
+                
                 var res = Prompts.ShowConfirmUninstallMulti(Application.Current?.MainWindow!, item.DisplayName, item.Version, versions);
                 if (res == PromptResult.Cancel) return false;
 
                 if (res == PromptResult.Primary)
                 {
-                    // Remove active
                     if (item.IsFolder)
                     {
                         var target = Path.Combine(plugins, item.FolderName!);
@@ -216,14 +199,12 @@ namespace ErenshorModInstaller.Wpf.Services
                                     : (File.Exists(baseDll + ".disabled") ? baseDll + ".disabled" : null);
                         if (dllPath != null) File.Delete(dllPath);
                     }
-
-                    // Remove store
+                    
                     TryDeleteDirectory(storeRoot);
                     sink.Info($"Removed all versions of {item.DisplayName}.");
                     return true;
                 }
-
-                // Picker dialog
+                
                 var picker = new VersionUninstallDialog(item.DisplayName, item.Version, versions)
                 {
                     Owner = Application.Current?.MainWindow
@@ -232,9 +213,8 @@ namespace ErenshorModInstaller.Wpf.Services
 
                 var removeActive = picker.RemoveActive;
                 var removeStored = new HashSet<string>(picker.StoredVersionsToRemove, StringComparer.OrdinalIgnoreCase);
-                var keepAsActive = picker.KeepAsActiveVersion; // null or one of versions
-
-                // If we are switching to a stored version, do that first and don't delete active after.
+                var keepAsActive = picker.KeepAsActiveVersion; 
+                
                 bool switchedToStored = false;
 
                 if (!string.IsNullOrWhiteSpace(keepAsActive) &&
@@ -243,7 +223,6 @@ namespace ErenshorModInstaller.Wpf.Services
                     var choice = FindStoredChoice(root, item, keepAsActive);
                     if (choice != null)
                     {
-                        // Move stored -> active and enable; this removes previous active on disk as part of the move
                         if (item.IsFolder)
                         {
                             var activeFolder = Path.Combine(plugins, item.FolderName ?? "");
@@ -258,8 +237,7 @@ namespace ErenshorModInstaller.Wpf.Services
                             var activeDisabled = activePath + ".disabled";
                             if (File.Exists(activePath)) File.Delete(activePath);
                             if (File.Exists(activeDisabled)) File.Delete(activeDisabled);
-
-                            // Stored path may be *.dll.disabled; move to *.dll
+                            
                             if (choice.StoredPath.EndsWith(".disabled", StringComparison.OrdinalIgnoreCase))
                             {
                                 if (File.Exists(activePath)) File.Delete(activePath);
@@ -278,15 +256,13 @@ namespace ErenshorModInstaller.Wpf.Services
                         CleanupIfEmpty(Path.Combine(storeRoot, keepAsActive));
                     }
                 }
-
-                // Remove selected stored versions
+                
                 foreach (var v in removeStored)
                 {
                     var vDir = Path.Combine(storeRoot, v);
                     TryDeleteDirectory(vDir);
                 }
-
-                // Remove active only if requested and we didn't switch
+                
                 if (removeActive && !switchedToStored)
                 {
                     if (item.IsFolder)
@@ -302,8 +278,7 @@ namespace ErenshorModInstaller.Wpf.Services
                         if (dllPath != null) File.Delete(dllPath);
                     }
                 }
-
-                // -------- FINAL TIDY: If only the kept-active version remains in the store, remove it too --------
+                
                 string? keptActiveVersion = null;
                 if (switchedToStored && !string.IsNullOrWhiteSpace(keepAsActive))
                     keptActiveVersion = keepAsActive;
@@ -319,22 +294,20 @@ namespace ErenshorModInstaller.Wpf.Services
 
                     if (remaining.Count == 0)
                     {
-                        // Nothing left: remove the store root
                         TryDeleteDirectory(storeRoot);
                     }
                     else if (keptActiveVersion != null &&
                              remaining.Count == 1 &&
                              string.Equals(remaining[0], keptActiveVersion, StringComparison.OrdinalIgnoreCase))
                     {
-                        // Only the active version's folder remains in store -> remove it and then the store root if empty
                         var onlyDir = Path.Combine(storeRoot, remaining[0]!);
                         TryDeleteDirectory(onlyDir);
                         CleanupIfEmpty(storeRoot);
                     }
                 }
-                // -----------------------------------------------------------------------------------------------
 
-                // Hide store again if it remains
+
+
                 TryHide(Path.Combine(plugins, ".versions"));
                 TryHide(storeRoot);
 
@@ -347,10 +320,7 @@ namespace ErenshorModInstaller.Wpf.Services
                 return false;
             }
         }
-
-
-
-        // ---------- Install (with downgrade prompt: Yes=Overwrite, No=Keep both (stash incoming), Cancel) ----------
+        
 
         public static bool InstallAny(string root, string path, IStatusSink sink)
         {
@@ -386,18 +356,16 @@ namespace ErenshorModInstaller.Wpf.Services
                                 sink.Info("Install canceled.");
                                 return false;
                             }
-                            if (res == PromptResult.Secondary) // Keep both
+                            if (res == PromptResult.Secondary) 
                             {
                                 StashIncomingOnly_Move(root, installed, path, incoming, sink);
                                 sink.Info($"Stored alternate version {incoming.Version} for {installed.DisplayName}. Right-click the mod to switch.");
                                 return true;
                             }
-                            // Primary => Overwrite
                             StashCurrentActive_Move(root, installed, sink);
                         }
                         else if (cmp > 0)
                         {
-                            // Upgrade: move current active to store, then install incoming
                             StashCurrentActive_Move(root, installed, sink);
                         }
                         // cmp == 0 => same version, allow overwrite without stashing
@@ -451,8 +419,6 @@ namespace ErenshorModInstaller.Wpf.Services
             }
         }
 
-        // ---------- Switch version (context menu path) ----------
-
         public static List<AlternateVersion> GetAlternateVersions(string root, ModItem item)
         {
             var result = new List<AlternateVersion>();
@@ -471,7 +437,6 @@ namespace ErenshorModInstaller.Wpf.Services
 
                     if (item.IsFolder)
                     {
-                        // Stored layout: <store>/<version>/<FolderName>/...
                         var storedFolder = Path.Combine(versionDir, item.FolderName ?? "");
                         var exists = Directory.Exists(storedFolder) ? storedFolder : versionDir;
 
@@ -486,7 +451,6 @@ namespace ErenshorModInstaller.Wpf.Services
                     }
                     else
                     {
-                        // Prefer exact dll name match; else pick the first dll in the stored version
                         var exactDll = Path.Combine(versionDir, item.DllFileName ?? "plugin.dll");
                         var candidate = File.Exists(exactDll) ? exactDll
                                       : (File.Exists(exactDll + ".disabled") ? exactDll + ".disabled" : null);
@@ -525,7 +489,6 @@ namespace ErenshorModInstaller.Wpf.Services
         {
             try
             {
-                // Move current active into store (disabled)
                 StashCurrentActive_Move(root, item, sink);
 
                 var plugins = Installer.GetPluginsDir(root);
@@ -537,11 +500,9 @@ namespace ErenshorModInstaller.Wpf.Services
 
                     if (!Directory.Exists(choice.StoredPath))
                         throw new InvalidOperationException("Stored version payload not found: " + choice.StoredPath);
-
-                    // Move stored -> active
+                    
                     MoveDirectoryRobust(choice.StoredPath, activeFolder);
-
-                    // Re-enable DLLs in active copy
+                    
                     EnableAllDllsRecursively(activeFolder);
 
                     sink.Info($"Switched {item.DisplayName} to v{choice.Version}.");
@@ -556,8 +517,7 @@ namespace ErenshorModInstaller.Wpf.Services
 
                     if (!File.Exists(choice.StoredPath))
                         throw new InvalidOperationException("Stored version file not found: " + choice.StoredPath);
-
-                    // Move file back; if stored as *.disabled, move/rename to *.dll to enable
+                    
                     if (choice.StoredPath.EndsWith(".disabled", StringComparison.OrdinalIgnoreCase))
                     {
                         if (File.Exists(activePath)) File.Delete(activePath);
@@ -565,15 +525,13 @@ namespace ErenshorModInstaller.Wpf.Services
                     }
                     else
                     {
-                        // Stored was .dll (shouldn’t happen since we disable in store), but handle anyway
                         if (File.Exists(activePath)) File.Delete(activePath);
                         File.Move(choice.StoredPath, activePath);
                     }
 
                     sink.Info($"Switched {item.DisplayName} to v{choice.Version}.");
                 }
-
-                // Keep store hidden
+                
                 TryHide(Path.Combine(plugins, ".versions"));
                 TryHide(VersionStoreForGuid(root, item.Guid));
 
@@ -586,7 +544,7 @@ namespace ErenshorModInstaller.Wpf.Services
             }
         }
 
-        // ---------- Internal helpers (move-based storage) ----------
+      
 
         private static bool IsHiddenOrDotFolder(string path)
         {
@@ -626,8 +584,7 @@ namespace ErenshorModInstaller.Wpf.Services
             }
             catch { }
         }
-
-        // Move the currently active install into the store and disable its DLLs inside the store.
+        
         private static void StashCurrentActive_Move(string root, ModItem installed, IStatusSink? sink)
         {
             try
@@ -646,11 +603,11 @@ namespace ErenshorModInstaller.Wpf.Services
                     if (Directory.Exists(activeFolder))
                     {
                         var destFolder = Path.Combine(dest, installed.FolderName ?? "");
-                        // Ensure clean target
+                      
                         TryDeleteDirectory(destFolder);
                         MoveDirectoryRobust(activeFolder, destFolder);
 
-                        // Disable everything in the stored copy
+                       
                         DisableAllDllsRecursively(destFolder);
                     }
                 }
@@ -665,8 +622,7 @@ namespace ErenshorModInstaller.Wpf.Services
                     {
                         Directory.CreateDirectory(dest);
                         var destDisabled = Path.Combine(dest, Path.GetFileName(enabledPath) + ".disabled");
-
-                        // Move & ensure disabled naming in store
+                        
                         if (existing.EndsWith(".disabled", StringComparison.OrdinalIgnoreCase))
                         {
                             if (File.Exists(destDisabled)) File.Delete(destDisabled);
@@ -674,7 +630,6 @@ namespace ErenshorModInstaller.Wpf.Services
                         }
                         else
                         {
-                            // Move then rename to .disabled inside store
                             var temp = Path.Combine(dest, Path.GetFileName(enabledPath));
                             if (File.Exists(temp)) File.Delete(temp);
                             File.Move(existing, temp);
@@ -691,8 +646,7 @@ namespace ErenshorModInstaller.Wpf.Services
                 sink?.Warn("Could not snapshot current version: " + ex.Message);
             }
         }
-
-        // Move the incoming payload directly into the store (no active install); disable DLLs inside the store.
+        
         private static void StashIncomingOnly_Move(string root, ModItem installed, string incomingPath, VersionScanner.ModVersionInfo incoming, IStatusSink sink)
         {
             try
@@ -719,7 +673,6 @@ namespace ErenshorModInstaller.Wpf.Services
                 }
                 else if (IsArchive(incomingPath))
                 {
-                    // Extract archive to temp BepInEx/plugins layout, then MOVE only the plugins content into store
                     var tmpRoot = Path.Combine(Path.GetTempPath(), "Erenshor_Alt_" + Guid.NewGuid().ToString("N"));
                     Directory.CreateDirectory(tmpRoot);
                     try
@@ -729,8 +682,7 @@ namespace ErenshorModInstaller.Wpf.Services
                         Directory.CreateDirectory(plugins);
 
                         Installer.InstallFromAny(tmpRoot, incomingPath);
-
-                        // Move the content under temp/plugins into destVersion
+                        
                         foreach (var entry in Directory.EnumerateFileSystemEntries(plugins, "*", SearchOption.TopDirectoryOnly))
                         {
                             var name = Path.GetFileName(entry);
@@ -799,14 +751,12 @@ namespace ErenshorModInstaller.Wpf.Services
             var ext = Path.GetExtension(path)?.ToLowerInvariant();
             return ext == ".zip" || ext == ".7z" || ext == ".rar";
         }
-
-        // Robust move: try Directory.Move, fallback to copy+delete across volumes/locks
+        
         private static void MoveDirectoryRobust(string sourceDir, string destDir)
         {
             if (!Directory.Exists(sourceDir))
                 throw new DirectoryNotFoundException("Source folder not found: " + sourceDir);
-
-            // Clean destination
+            
             TryDeleteDirectory(destDir);
             Directory.CreateDirectory(Path.GetDirectoryName(destDir)!);
 
@@ -816,7 +766,6 @@ namespace ErenshorModInstaller.Wpf.Services
             }
             catch
             {
-                // Cross-volume or locked edge cases: copy then delete
                 CopyDirectory(sourceDir, destDir);
                 TryDeleteDirectory(sourceDir);
             }
@@ -863,8 +812,7 @@ namespace ErenshorModInstaller.Wpf.Services
                 catch { }
             }
         }
-
-        // Recursively disable all *.dll by renaming to *.dll.disabled
+        
         private static void DisableAllDllsRecursively(string rootDir)
         {
             try
@@ -882,8 +830,7 @@ namespace ErenshorModInstaller.Wpf.Services
             }
             catch { }
         }
-
-        // Recursively enable all *.dll.disabled by renaming back to *.dll
+        
         private static void EnableAllDllsRecursively(string rootDir)
         {
             try
@@ -901,8 +848,6 @@ namespace ErenshorModInstaller.Wpf.Services
             }
             catch { }
         }
-
-        // ---------- tiny helpers used by Uninstall ----------
 
         private static AlternateVersion? FindStoredChoice(string root, ModItem item, string version)
         {

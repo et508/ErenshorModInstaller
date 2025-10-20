@@ -3,11 +3,6 @@ using System.Text.RegularExpressions;
 
 namespace ErenshorModInstaller.Wpf.Services
 {
-    /// <summary>
-    /// Minimal, forgiving version parsing & comparison for BepInPlugin versions.
-    /// Accepts forms like "1.2.3", "2.0", "13.0.4+hash", "v1.0.0-rc1".
-    /// Missing/invalid -> 0.0.0.
-    /// </summary>
     public static class VersionUtil
     {
         private static readonly Regex Parts = new(@"^\D*?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:\.(\d+))?", RegexOptions.Compiled);
@@ -24,10 +19,7 @@ namespace ErenshorModInstaller.Wpf.Services
 
             return new Version(GetPart(1), GetPart(2), GetPart(3), GetPart(4));
         }
-
-        /// <summary>
-        /// Returns -1 if a&lt;b, 0 if equal, +1 if a&gt;b.
-        /// </summary>
+        
         public static int Compare(string? a, string? b)
         {
             var va = ParseOrZero(a);

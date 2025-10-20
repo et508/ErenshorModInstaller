@@ -11,8 +11,8 @@ namespace ErenshorModInstaller.Wpf.UI
                 .WithTitle("Lower Version Detected")
                 .WithMessage($"A newer version of {displayName} is already installed.")
                 .WithDetail($"Installed: {installed}\nIncoming:  {incoming}")
-                .WithPrimary("Overwrite")          // overwrite/downgrade
-                .WithSecondary("Keep both")        // stash incoming
+                .WithPrimary("Overwrite")        
+                .WithSecondary("Keep both")        
                 .WithCancel("Cancel");
 
             dlg.ShowDialog();

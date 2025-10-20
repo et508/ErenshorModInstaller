@@ -26,7 +26,7 @@ namespace ErenshorModInstaller.Wpf.Services
                     new ReaderParameters
                     {
                         ReadSymbols = false,
-                        ReadingMode = ReadingMode.Immediate // safer for attribute reads
+                        ReadingMode = ReadingMode.Immediate
                     });
 
                 foreach (var module in asm.Modules)
@@ -73,8 +73,8 @@ namespace ErenshorModInstaller.Wpf.Services
 
         private static bool IsBepInPluginAttribute(CustomAttribute attr)
         {
-            var full = attr.AttributeType.FullName; // e.g., "BepInEx.BepInPlugin"
-            var name = attr.AttributeType.Name;     // e.g., "BepInPluginAttribute"
+            var full = attr.AttributeType.FullName; 
+            var name = attr.AttributeType.Name;     
             return full.EndsWith(".BepInPlugin", StringComparison.Ordinal)
                 || full.EndsWith(".BepInPluginAttribute", StringComparison.Ordinal)
                 || string.Equals(name, "BepInPlugin", StringComparison.Ordinal)

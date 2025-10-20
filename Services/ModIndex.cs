@@ -75,8 +75,7 @@ namespace ErenshorModInstaller.Wpf.Services
             if (!Directory.Exists(plugins)) return;
 
             var fresh = new Dictionary<string, StoredMod>(StringComparer.OrdinalIgnoreCase);
-
-            // Folder mods
+            
             foreach (var dir in Directory.GetDirectories(plugins))
             {
                 try
@@ -93,8 +92,7 @@ namespace ErenshorModInstaller.Wpf.Services
                 }
                 catch { }
             }
-
-            // Top-level plugins (enabled & disabled)
+            
             foreach (var f in Directory.GetFiles(plugins, "*.dll", SearchOption.TopDirectoryOnly))
             {
                 try
@@ -130,11 +128,7 @@ namespace ErenshorModInstaller.Wpf.Services
 
             Save(gameRoot, fresh);
         }
-
-        /// <summary>
-        /// Ensures the index exists and has the minimal schema (guid/name/version).
-        /// If missing, empty, or old-shaped (e.g., contains "confidence" / "primaryDll"), rebuild from plugins.
-        /// </summary>
+        
         public static void EnsureMinimalIndex(string gameRoot)
         {
             var path = GetIndexPath(gameRoot);
@@ -152,8 +146,7 @@ namespace ErenshorModInstaller.Wpf.Services
                     RebuildFromExistingMods(gameRoot);
                     return;
                 }
-
-                // crude old-shape detection to auto-migrate
+                
                 if (json.Contains("\"confidence\"", StringComparison.OrdinalIgnoreCase) ||
                     json.Contains("\"primaryDll\"", StringComparison.OrdinalIgnoreCase) ||
                     json.Contains("\"sha256\"", StringComparison.OrdinalIgnoreCase))

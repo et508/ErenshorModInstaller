@@ -9,10 +9,6 @@ using ErenshorModInstaller.Wpf.UI;
 
 namespace ErenshorModInstaller.Wpf.Services
 {
-    /// <summary>
-    /// Centralized BepInEx validation, auto-install, first-run orchestration,
-    /// and config fix prompts. All user prompts live here.
-    /// </summary>
     public static class GameSetupService
     {
         public static async Task<bool> ValidateAndFixAsync(string gameRoot, IStatusSink? status)
@@ -23,7 +19,7 @@ namespace ErenshorModInstaller.Wpf.Services
                 return false;
             }
 
-            // 1) BepInEx present?
+
             string? ver = null;
             try
             {
@@ -39,7 +35,6 @@ namespace ErenshorModInstaller.Wpf.Services
 
                 try
                 {
-                    // adapt IStatusSink -> IProgress<string> for installer
                     var progress = new Progress<string>(s => status?.Info(s));
                     await BepInExInstaller.InstallLatestBepInEx5WindowsX64Async(
                         gameRoot,
@@ -60,8 +55,7 @@ namespace ErenshorModInstaller.Wpf.Services
                     return false;
                 }
             }
-
-            // 2) plugins folder present?
+            
             var plugins = Installer.GetPluginsDir(gameRoot);
             if (!Directory.Exists(plugins))
             {
@@ -78,8 +72,7 @@ namespace ErenshorModInstaller.Wpf.Services
             {
                 status?.Info($"BepInEx OK ({ver ?? "version unknown"})");
             }
-
-            // 3) Config checks
+            
             var cfgStatus = Installer.GetBepInExConfigStatus(gameRoot, out var cfgPath);
             switch (cfgStatus)
             {
@@ -121,8 +114,6 @@ namespace ErenshorModInstaller.Wpf.Services
 
             return true;
         }
-
-        // ---------- First-run orchestration ----------
 
         public static async Task LaunchErenshorForSetupAsync(string root, IStatusSink? status)
         {

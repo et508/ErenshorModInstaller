@@ -9,24 +9,13 @@ using SharpCompress.Readers;
 
 namespace ErenshorModInstaller.Wpf.Services
 {
-    /// <summary>
-    /// File-system level install/validation helpers.
-    /// - No UI here (no MessageBox). Pure operations + exceptions & return types.
-    /// - Archives handled via SharpCompress (.zip, .7z, .rar).
-    /// - Placement rules:
-    ///   * Dropped folder => copy the whole folder to BepInEx/plugins/<FolderName>
-    ///   * Archive => extract preserving relative paths under BepInEx/plugins (so "coolmod/..." -> plugins/coolmod/..., root DLLs -> plugins/*.dll)
-    ///   * Bare DLL => copy into BepInEx/plugins
-    /// </summary>
     public static class Installer
     {
-        // ---------------------------- Public API ----------------------------
-
         public sealed class InstallResult
         {
-            public string TargetDir { get; set; } = ""; // Where the content landed (plugins or plugins/<folder>)
-            public string PrimaryDll { get; set; } = ""; // Best-guess plugin DLL that contains BepInPlugin, else empty
-            public string Warning { get; set; } = "";    // Any non-fatal warning to surface
+            public string TargetDir { get; set; } = ""; 
+            public string PrimaryDll { get; set; } = ""; 
+            public string Warning { get; set; } = "";  
         }
 
         public enum BepInExConfigStatus
@@ -36,11 +25,7 @@ namespace ErenshorModInstaller.Wpf.Services
             MissingKey,
             WrongValue
         }
-
-        /// <summary>
-        /// Throws with a user-friendly message if BepInEx is not present correctly.
-        /// Returns a version string if detected (best-effort).
-        /// </summary>
+        
         public static string? ValidateBepInExOrThrow(string gameRoot)
         {
             if (string.IsNullOrWhiteSpace(gameRoot) || !Directory.Exists(gameRoot))
@@ -64,8 +49,7 @@ namespace ErenshorModInstaller.Wpf.Services
                 throw new InvalidOperationException("BepInEx/core folder not found.");
             if (!File.Exists(preloader) && !File.Exists(bepinexDll))
                 throw new InvalidOperationException("BepInEx core libraries not found in BepInEx/core.");
-
-            // Try to read file version from BepInEx.dll (best-effort)
+            
             try
             {
                 var dllForVersion = File.Exists(bepinexDll) ? bepinexDll : preloader;
@@ -90,28 +74,18 @@ namespace ErenshorModInstaller.Wpf.Services
         public static string GetBepInExDir(string gameRoot) => Path.Combine(gameRoot, "BepInEx");
 
         public static string GetPluginsDir(string gameRoot) => Path.Combine(GetBepInExDir(gameRoot), "plugins");
-
-        /// <summary>
-        /// Reads BepInEx.cfg and ensures the HideManagerGameObject setting is present/true.
-        /// We only report status here — no file creation. Caller decides whether to offer fixing.
-        /// </summary>
+        
         public static BepInExConfigStatus GetBepInExConfigStatus(string gameRoot, out string cfgPath)
         {
             cfgPath = Path.Combine(GetBepInExDir(gameRoot), "config", "BepInEx.cfg");
             if (!File.Exists(cfgPath)) return BepInExConfigStatus.MissingConfig;
-
-            // We accept either "HideManagerGameObject" or "HideManagerGameObjects" (typos happen).
-            // True values: true, 1, yes (case-insensitive).
+            
             var (exists, isTrue) = TryReadHideManagerGameObject(cfgPath);
             if (!exists) return BepInExConfigStatus.MissingKey;
             if (!isTrue) return BepInExConfigStatus.WrongValue;
             return BepInExConfigStatus.Ok;
         }
-
-        /// <summary>
-        /// Updates BepInEx.cfg (must already exist) to set HideManagerGameObject(s)=true.
-        /// Throws on errors. Does not create the file.
-        /// </summary>
+        
         public static void EnsureHideManagerGameObjectTrue(string gameRoot)
         {
             var cfgPath = Path.Combine(GetBepInExDir(gameRoot), "config", "BepInEx.cfg");
@@ -126,15 +100,11 @@ namespace ErenshorModInstaller.Wpf.Services
             }
             else
             {
-                // Key not found, append into a suitable section (best-effort)
                 var appended = AppendHideManagerKey(text);
                 File.WriteAllText(cfgPath, appended, new UTF8Encoding(false));
             }
         }
-
-        /// <summary>
-        /// Install a whole folder: copy to plugins/&lt;folderName&gt; preserving structure.
-        /// </summary>
+        
         public static InstallResult InstallFromDirectory(string gameRoot, string sourceDir)
         {
             if (string.IsNullOrWhiteSpace(sourceDir) || !Directory.Exists(sourceDir))
@@ -153,10 +123,7 @@ namespace ErenshorModInstaller.Wpf.Services
                 PrimaryDll = primaryDll ?? ""
             };
         }
-
-        /// <summary>
-        /// Install a single DLL to plugins root.
-        /// </summary>
+        
         public static InstallResult InstallDll(string gameRoot, string dllPath)
         {
             if (string.IsNullOrWhiteSpace(dllPath) || !File.Exists(dllPath))
@@ -168,8 +135,7 @@ namespace ErenshorModInstaller.Wpf.Services
             var fileName = Path.GetFileName(dllPath);
             var dest = Path.Combine(plugins, fileName);
             File.Copy(dllPath, dest, overwrite: true);
-
-            // Primary dll is the file we just copied (if it’s a plugin)
+            
             string? primary = null;
             try
             {
@@ -185,11 +151,7 @@ namespace ErenshorModInstaller.Wpf.Services
                 PrimaryDll = primary ?? ""
             };
         }
-
-        /// <summary>
-        /// Install from any file: .zip/.7z/.rar => extract; .dll => InstallDll; otherwise throws.
-        /// Extraction preserves archive relative paths under plugins.
-        /// </summary>
+        
         public static InstallResult InstallFromAny(string gameRoot, string path)
         {
             if (path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
@@ -200,10 +162,7 @@ namespace ErenshorModInstaller.Wpf.Services
 
             throw new InvalidOperationException("Unsupported file type for install: " + Path.GetFileName(path));
         }
-
-        /// <summary>
-        /// Robust directory deletion (read-only, nested).
-        /// </summary>
+        
         public static void TryDeleteDirectory(string dir)
         {
             if (!Directory.Exists(dir)) return;
@@ -231,15 +190,10 @@ namespace ErenshorModInstaller.Wpf.Services
             }
             catch
             {
-                // fallback
                 try { Directory.Delete(dir, recursive: true); } catch { }
             }
         }
-
-        /// <summary>
-        /// Peek inside an archive and extract only DLLs to a temp directory to find a plugin DLL.
-        /// Returns true and sets info if found.
-        /// </summary>
+        
         public static bool TryScanArchiveForPlugin(string archivePath, out VersionScanner.ModVersionInfo? info)
         {
             info = null;
@@ -294,8 +248,6 @@ namespace ErenshorModInstaller.Wpf.Services
             }
         }
 
-        // ---------------------------- Internals ----------------------------
-
         private static bool IsArchive(string path)
         {
             var ext = Path.GetExtension(path)?.ToLowerInvariant();
@@ -309,8 +261,7 @@ namespace ErenshorModInstaller.Wpf.Services
 
             var plugins = GetPluginsDir(gameRoot);
             Directory.CreateDirectory(plugins);
-
-            // Extract preserving relative paths under plugins
+            
             var extractedFiles = new List<string>();
             string? primaryDll = null;
 
@@ -324,12 +275,10 @@ namespace ErenshorModInstaller.Wpf.Services
 
                     var rawKey = entry.Key ?? "";
                     if (string.IsNullOrWhiteSpace(rawKey)) continue;
-
-                    // Normalize entry path to OS separators
+                    
                     var rel = rawKey.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
                     rel = rel.TrimStart(Path.DirectorySeparatorChar);
-
-                    // Where to place inside plugins
+                    
                     var outPath = Path.Combine(plugins, rel);
                     var outDir = Path.GetDirectoryName(outPath)!;
                     Directory.CreateDirectory(outDir);
@@ -342,8 +291,7 @@ namespace ErenshorModInstaller.Wpf.Services
                     extractedFiles.Add(outPath);
                 }
             }
-
-            // Best-guess PrimaryDll: first extracted DLL that has BepInPlugin
+            
             foreach (var f in extractedFiles.Where(f => f.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)))
             {
                 try
@@ -357,9 +305,7 @@ namespace ErenshorModInstaller.Wpf.Services
                 }
                 catch { /* ignore */ }
             }
-
-            // Resolve TargetDir heuristically:
-            // If all extracted files share a common top-level folder under plugins, return that folder; else plugins.
+            
             var topFolder = CommonTopLevelFolderUnder(plugins, extractedFiles);
             var targetDir = topFolder ?? plugins;
 
@@ -398,7 +344,7 @@ namespace ErenshorModInstaller.Wpf.Services
                     if (seg.Length > 1)
                         tops.Add(Path.Combine(pluginsRoot, seg[0]));
                     else
-                        tops.Add(pluginsRoot); // file at root => no single top folder
+                        tops.Add(pluginsRoot); 
                 }
 
                 if (tops.Count == 1)
@@ -433,9 +379,6 @@ namespace ErenshorModInstaller.Wpf.Services
 
         private static (bool exists, bool isTrue) TryReadHideManagerGameObject(string cfgPath)
         {
-            // We accept either key name: HideManagerGameObject or HideManagerGameObjects
-            // Values considered TRUE: "true", "1", "yes" (case-insensitive, trimmed).
-            // Very forgiving INI parsing: scan all non-comment lines "key = value".
             try
             {
                 var lines = File.ReadAllLines(cfgPath);
@@ -475,7 +418,6 @@ namespace ErenshorModInstaller.Wpf.Services
 
         private static string SetHideManagerKeyToTrue(string text)
         {
-            // Replace value for first occurrence of either key; keep original casing/spacing style loosely
             var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
             var keys = new[] { "hidemanagergameobject", "hidemanagergameobjects" };
             var changed = false;
@@ -494,7 +436,6 @@ namespace ErenshorModInstaller.Wpf.Services
 
                 if (keys.Contains(key.ToLowerInvariant()))
                 {
-                    // Preserve key casing, normalize to "true"
                     var prefix = src[..src.IndexOf('=')];
                     lines[i] = $"{prefix}= true";
                     changed = true;
@@ -507,7 +448,6 @@ namespace ErenshorModInstaller.Wpf.Services
 
         private static string AppendHideManagerKey(string text)
         {
-            // Append to end within a [BepInEx] or general section if one exists; otherwise add a small section.
             var sb = new StringBuilder();
             sb.AppendLine(text.TrimEnd());
             sb.AppendLine();

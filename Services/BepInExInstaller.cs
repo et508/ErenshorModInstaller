@@ -12,12 +12,7 @@ namespace ErenshorModInstaller.Wpf.Services
     public static class BepInExInstaller
     {
         private const string ReleasesApi = "https://api.github.com/repos/et508/Erenshor.BepInEx/releases/tags/e1";
-
-        /// <summary>
-        /// Downloads and extracts the latest BepInEx 5.x Windows x64 ZIP into gameRoot.
-        /// Uses GitHub releases. Overwrites existing files if present.
-        /// Does NOT create BepInEx/plugins (user must run the game once).
-        /// </summary>
+        
         public static async Task<bool> InstallLatestBepInEx5WindowsX64Async(
             string gameRoot,
             IProgress<string>? progress = null,
@@ -41,8 +36,7 @@ namespace ErenshorModInstaller.Wpf.Services
 
             string? assetName = null;
             string? assetUrl  = null;
-
-            // Look for "BepInEx_x64_5.X.X.zip"
+            
             var rx = new Regex(@"^BepInEx_win_x64_5\.4\.23\.4e\.zip$", RegexOptions.IgnoreCase);
             if (root.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array)
             {
@@ -64,16 +58,14 @@ namespace ErenshorModInstaller.Wpf.Services
 
             progress?.Report($"Downloading {assetName}…");
             var tmpZip = Path.Combine(Path.GetTempPath(), assetName!);
-
-            // Download to temp
+            
             using (var download = await http.GetAsync(assetUrl, HttpCompletionOption.ResponseHeadersRead, ct))
             {
                 download.EnsureSuccessStatusCode();
                 await using var fs = File.Create(tmpZip);
                 await download.Content.CopyToAsync(fs, ct);
             }
-
-            // Extract ZIP into the game root (with a trivial zip-slip guard)
+            
             progress?.Report("Extracting BepInEx…");
 
             using (var archive = ZipFile.OpenRead(tmpZip))
@@ -102,8 +94,7 @@ namespace ErenshorModInstaller.Wpf.Services
             }
 
             try { File.Delete(tmpZip); } catch { /* ignore temp cleanup */ }
-
-            // Post-check must-have files
+            
             var bepDir    = Installer.GetBepInExDir(gameRoot);
             var winHttp   = Path.Combine(gameRoot, "winhttp.dll");
             var doorstop  = Path.Combine(gameRoot, "doorstop_config.ini");

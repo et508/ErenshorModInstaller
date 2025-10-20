@@ -13,7 +13,6 @@ namespace ErenshorModInstaller.Wpf.UI
 
     public partial class PromptDialog : Window
     {
-        // Bindable props (kept simple; code-behind data context)
         public string TitleText { get; set; } = "Confirm";
         public string MessageText { get; set; } = "";
         public string DetailText { get; set; } = "";
@@ -39,8 +38,7 @@ namespace ErenshorModInstaller.Wpf.UI
             InitializeComponent();
             DataContext = this;
         }
-
-        // Fluent builder helpers
+        
         public PromptDialog WithOwner(Window owner)
         {
             Owner = owner;
@@ -86,7 +84,7 @@ namespace ErenshorModInstaller.Wpf.UI
         private void OnCancel(object sender, RoutedEventArgs e)
         {
             Result = PromptResult.Cancel;
-            DialogResult = false; // keep false so Esc behaves like cancel
+            DialogResult = false; 
             Close();
         }
     }

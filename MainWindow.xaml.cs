@@ -48,8 +48,6 @@ namespace ErenshorModInstaller.Wpf
             });
         }
 
-        // ---------- App bootstrap / auto-validate ----------
-
         private async void TryAutoDetect()
         {
             try
@@ -76,8 +74,6 @@ namespace ErenshorModInstaller.Wpf
             var root = GamePathBox.Text;
             await GameSetupService.ValidateAndFixAsync(root, this);
         }
-
-        // ---------- UI handlers ----------
 
         private async void Browse_Click(object sender, RoutedEventArgs e)
         {
@@ -240,16 +236,13 @@ namespace ErenshorModInstaller.Wpf
             {
                 if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
                 var paths = (string[])e.Data.GetData(DataFormats.FileDrop);
-
-                // Ensure BepInEx ready before processing any dropped items
+                
                 await AutoValidateAsync();
 
                 foreach (var p in paths) InstallAny(p);
             }
             catch (Exception ex) { Error("Drop install failed: " + ex.Message); }
         }
-
-        // ---------- Right-click switch-version menu ----------
 
         private static T? FindAncestor<T>(DependencyObject? current) where T : DependencyObject
         {
@@ -303,8 +296,6 @@ namespace ErenshorModInstaller.Wpf
             catch { }
         }
 
-        // ---------- Install orchestration ----------
-
         private async void InstallAny(string path)
         {
             var root = GamePathBox.Text;
@@ -313,11 +304,9 @@ namespace ErenshorModInstaller.Wpf
                 Warn("Set a valid game folder first.");
                 return;
             }
-
-            // Always ensure BepInEx is ready (auto-prompts + first-run if needed)
+            
             await GameSetupService.ValidateAndFixAsync(root, this);
-
-            // If plugins still missing or cfg missing, bail (user may have said "No")
+            
             var plugins = Installer.GetPluginsDir(root);
             if (!Directory.Exists(plugins))
             {
@@ -337,8 +326,6 @@ namespace ErenshorModInstaller.Wpf
             }
         }
 
-        // ---------- IStatusSink implementation (thread-safe) ----------
-
         public void Info(string message)  => SetStatus(message);
         public void Warn(string message)  => SetStatus(message);
         public void Error(string message) => SetStatus(message);
@@ -355,8 +342,6 @@ namespace ErenshorModInstaller.Wpf
                 StatusBlock.Text = msg;
             }
         }
-
-        // ---------- Helpers ----------
 
         private void RefreshMods()
         {

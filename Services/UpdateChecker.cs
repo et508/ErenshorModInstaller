@@ -9,7 +9,6 @@ namespace ErenshorModInstaller.Wpf.Services
 {
     public static class UpdateChecker
     {
-        // TODO: set these to your repo
         private const string Owner = "et508";
         private const string Repo  = "ErenshorModInstaller";
 
@@ -31,13 +30,11 @@ namespace ErenshorModInstaller.Wpf.Services
             var info = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
             if (!string.IsNullOrWhiteSpace(info))
             {
-                // Remove git metadata like "+abc123"
                 var plus = info.IndexOf('+');
                 if (plus > 0) info = info.Substring(0, plus);
                 return info.Trim();
             }
-
-            // Fallbacks
+            
             var fileVer = asm.GetCustomAttribute<AssemblyFileVersionAttribute>()?.Version;
             if (!string.IsNullOrWhiteSpace(fileVer)) return fileVer.Trim();
 
@@ -52,8 +49,7 @@ namespace ErenshorModInstaller.Wpf.Services
                 var current = NormalizeVersion(GetCurrentVersion());
                 if (string.IsNullOrWhiteSpace(current))
                     current = "0.0.0";
-
-                // Required headers for GitHub API
+                
                 _http.DefaultRequestHeaders.UserAgent.Clear();
                 _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("ErenshorModInstaller", current));
                 _http.DefaultRequestHeaders.Accept.Clear();
@@ -75,8 +71,7 @@ namespace ErenshorModInstaller.Wpf.Services
                 var normalizedTag = NormalizeVersion(tag);
                 if (string.IsNullOrWhiteSpace(normalizedTag))
                     return (false, new LatestInfo { Tag = tag, Name = name, HtmlUrl = html }, "Empty remote tag");
-
-                // Compare properly (semver-ish)
+                
                 var cmp = CompareSemVerSafe(normalizedTag, current);
                 var hasUpdate = cmp > 0;
 
@@ -95,7 +90,6 @@ namespace ErenshorModInstaller.Wpf.Services
             v = v.Trim();
             if (v.StartsWith("v", StringComparison.OrdinalIgnoreCase))
                 v = v.Substring(1);
-            // Strip metadata like "+abc123"
             var plus = v.IndexOf('+');
             if (plus > 0) v = v.Substring(0, plus);
             return v;

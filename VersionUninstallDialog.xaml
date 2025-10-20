@@ -11,18 +11,16 @@
       <RowDefinition Height="8"/>
       <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
-
-    <!-- Header shows mod name -->
+    
     <TextBlock x:Name="HeaderText" FontWeight="Bold" FontSize="14" />
 
     <Border Grid.Row="2" BorderBrush="#DDD" BorderThickness="1" CornerRadius="6" Padding="8">
       <StackPanel>
-        <!-- Active version info -->
+
         <TextBlock x:Name="ActiveInfo"
                    Margin="0,0,0,6"
                    Foreground="#666"/>
-
-        <!-- Column headers -->
+        
         <Grid Margin="0,0,0,4">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="80"/>
@@ -45,21 +43,18 @@
                     <ColumnDefinition Width="120"/>
                     <ColumnDefinition Width="*"/>
                   </Grid.ColumnDefinitions>
-
-                  <!-- Remove checkbox -->
+                  
                   <CheckBox IsChecked="{Binding Remove}"
                             VerticalAlignment="Center"
                             HorizontalAlignment="Center"
                             Margin="0"/>
-
-                  <!-- Keep as Active radio -->
+                  
                   <RadioButton GroupName="KeepGroup"
                                IsChecked="{Binding Keep}"
                                VerticalAlignment="Center"
                                HorizontalAlignment="Center"
                                Grid.Column="1"/>
-
-                  <!-- Version text -->
+                  
                   <TextBlock Text="{Binding Version}"
                              VerticalAlignment="Center"
                              Margin="8,0,0,0"
@@ -74,8 +69,7 @@
                    Text="Tip: Choose one version to keep active. You can mark others for removal."/>
       </StackPanel>
     </Border>
-
-    <!-- Buttons -->
+    
     <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
       <Button Content="OK" Width="80" Margin="0,0,8,0" Click="Ok_Click"/>
       <Button Content="Cancel" Width="80" Click="Cancel_Click"/>
