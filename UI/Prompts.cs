@@ -113,5 +113,18 @@ namespace ErenshorModInstaller.Wpf.UI
             dlg.ShowDialog();
             return dlg.Result;
         }
+        
+        public static PromptResult ShowUpdateAvailable(string currentVersion, string newVersion)
+        {
+            var dlg = new PromptDialog()
+                .CenteredOnScreen()
+                .WithTitle("New Version")
+                .WithMessage($"\n\nA new version is available.\n\nGo to GitHub release page to download. ")
+                .WithPrimary("Go To Release")
+                .WithCancel("Cancel");
+
+            dlg.ShowDialog();
+            return dlg.Result;
+        }
     }
 }

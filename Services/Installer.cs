@@ -73,6 +73,12 @@ namespace ErenshorModInstaller.Wpf.Services
                 {
                     var verInfo = FileVersionInfo.GetVersionInfo(dllForVersion);
                     var ver = verInfo?.ProductVersion ?? verInfo?.FileVersion;
+                    if (!string.IsNullOrWhiteSpace(ver))
+                    {
+                        ver = ver.Trim();
+                        var plus = ver.IndexOf('+');
+                        if (plus >= 0) ver = ver.Substring(0, plus).Trim();
+                    }
                     return ver;
                 }
             }

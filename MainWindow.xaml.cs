@@ -12,19 +12,40 @@ using System.Windows.Threading;
 using ErenshorModInstaller.Wpf.Services;
 using ErenshorModInstaller.Wpf.Services.Abstractions;
 using ErenshorModInstaller.Wpf.Services.Models;
+using ErenshorModInstaller.Wpf.UI;
 
 namespace ErenshorModInstaller.Wpf
 {
     public partial class MainWindow : Window, IStatusSink
     {
+        public string AppVersion { get; } 
         public ObservableCollection<ModItem> Mods { get; } = new();
         private bool _isUpdatingList;
 
         public MainWindow()
         {
             InitializeComponent();
+            AppVersion = $"v{UpdateChecker.GetCurrentVersion()}";
             DataContext = this;
             TryAutoDetect();
+            
+            _ = Task.Run(async () =>
+            {
+                var (hasUpdate, latest, _) = await UpdateChecker.CheckAsync();
+
+                if (hasUpdate && latest != null)
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        var update = Prompts.ShowUpdateAvailable(UpdateChecker.GetCurrentVersion(), latest.Tag);
+                        
+                        if (update == PromptResult.Primary)
+                        {
+                            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = latest.HtmlUrl, UseShellExecute = true }); } catch { }
+                        }
+                    });
+                }
+            });
         }
 
         // ---------- App bootstrap / auto-validate ----------

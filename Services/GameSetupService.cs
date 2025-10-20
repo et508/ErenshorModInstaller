@@ -76,7 +76,7 @@ namespace ErenshorModInstaller.Wpf.Services
             }
             else
             {
-                status?.Info($"BepInEx OK ({ver ?? "version unknown"}).");
+                status?.Info($"BepInEx OK ({ver ?? "version unknown"})");
             }
 
             // 3) Config checks
@@ -251,7 +251,7 @@ namespace ErenshorModInstaller.Wpf.Services
 
                 if (Directory.Exists(plugins) && File.Exists(cfg))
                 {
-                    status?.Info($"BepInEx OK ({ver ?? "version unknown"}).");
+                    status?.Info($"BepInEx OK ({ver ?? "version unknown"})");
                     Prompts.ShowBepInExSuccess();
                 }
                 else
