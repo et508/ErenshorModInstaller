@@ -45,10 +45,13 @@
             <ColumnDefinition Width="240"/>
           </Grid.ColumnDefinitions>
 
-          <GroupBox Header="Installed Mods (BepInEx/plugins)" Grid.Column="0">
+          <GroupBox Header="Installed Mods" Grid.Column="0">
             <DockPanel LastChildFill="True">
-              <ListBox x:Name="ModsList" Margin="6" HorizontalContentAlignment="Stretch"
-                       ItemsSource="{Binding Mods}">
+              <ListBox x:Name="ModsList"
+                       Margin="6"
+                       HorizontalContentAlignment="Stretch"
+                       ItemsSource="{Binding Mods}"
+                       PreviewMouseRightButtonDown="ModsList_PreviewMouseRightButtonDown">
                 <ListBox.ItemTemplate>
                   <DataTemplate>
                     <StackPanel Orientation="Horizontal">
@@ -56,9 +59,11 @@
                                 IsChecked="{Binding IsEnabled}"
                                 Checked="ModToggle_Checked"
                                 Unchecked="ModToggle_Unchecked"/>
-                      <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center"/>
+                      <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" ToolTip="{Binding Guid}"/>
                       <TextBlock Margin="8,0,0,0" Foreground="#888" VerticalAlignment="Center"
                                  Text="{Binding StatusSuffix}"/>
+                      <TextBlock Margin="6,0,0,0" Foreground="#999" VerticalAlignment="Center"
+                                 Text="{Binding Version}"/>
                     </StackPanel>
                   </DataTemplate>
                 </ListBox.ItemTemplate>
@@ -79,9 +84,9 @@
         </Grid>
       </Grid>
     </Border>
-    
+
     <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Left">
-      <TextBlock Text="v1.0.1" Foreground="DarkGray" VerticalAlignment="Bottom" Margin="0,0,0,-10"/>
+      <TextBlock Text="{Binding AppVersion}" Foreground="DarkGray" VerticalAlignment="Bottom" Margin="0,0,0,-10"/>
     </StackPanel>
 
     <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right">

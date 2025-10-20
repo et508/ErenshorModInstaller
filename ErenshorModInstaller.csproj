@@ -11,6 +11,7 @@
 
     <ItemGroup>
         <Resource Include="Assets\appicon.ico" />
+        <PackageReference Include="Mono.Cecil" Version="0.11.6" />
         <PackageReference Include="SharpCompress" Version="0.37.2" />
     </ItemGroup>
 
@@ -22,6 +23,13 @@
         <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
         <DebugType>None</DebugType>
         <PublishReadyToRun>true</PublishReadyToRun>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <InformationalVersion>1.1.0</InformationalVersion>
+        <FileVersion>1.1.0.0</FileVersion>
+        <AssemblyVersion>1.1.0.0</AssemblyVersion>
+        <Version>1.1.0</Version>
     </PropertyGroup>
 
 </Project>

@@ -1,54 +1,54 @@
 using Microsoft.Win32;
 using System;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Threading;
 using ErenshorModInstaller.Wpf.Services;
+using ErenshorModInstaller.Wpf.Services.Abstractions;
+using ErenshorModInstaller.Wpf.Services.Models;
+using ErenshorModInstaller.Wpf.UI;
 
 namespace ErenshorModInstaller.Wpf
 {
-    public partial class MainWindow : Window
+    public partial class MainWindow : Window, IStatusSink
     {
-        public sealed class ModItem
-        {
-            public string DisplayName { get; set; } = "";
-            public bool IsFolder { get; set; }
-            public string? FolderName { get; set; }     
-            public string? DllFileName { get; set; }      
-            public bool IsEnabled { get; set; }
-            public bool IsPartial { get; set; }            
-            public bool HasDll { get; set; }               
-            public string StatusSuffix
-            {
-                get
-                {
-                    if (IsFolder)
-                    {
-                        if (!HasDll) return " (no dll)";
-                        if (IsPartial) return " (partial)";
-                        return IsEnabled ? "" : " (disabled)";
-                    }
-                    else
-                    {
-                        return IsEnabled ? "" : " (disabled)";
-                    }
-                }
-            }
-        }
-
+        public string AppVersion { get; } 
         public ObservableCollection<ModItem> Mods { get; } = new();
         private bool _isUpdatingList;
 
         public MainWindow()
         {
             InitializeComponent();
+            AppVersion = $"v{UpdateChecker.GetCurrentVersion()}";
             DataContext = this;
             TryAutoDetect();
+            
+            _ = Task.Run(async () =>
+            {
+                var (hasUpdate, latest, _) = await UpdateChecker.CheckAsync();
+
+                if (hasUpdate && latest != null)
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        var update = Prompts.ShowUpdateAvailable(UpdateChecker.GetCurrentVersion(), latest.Tag);
+                        
+                        if (update == PromptResult.Primary)
+                        {
+                            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = latest.HtmlUrl, UseShellExecute = true }); } catch { }
+                        }
+                    });
+                }
+            });
         }
 
-        private void TryAutoDetect()
+        private async void TryAutoDetect()
         {
             try
             {
@@ -56,24 +56,26 @@ namespace ErenshorModInstaller.Wpf
                 if (!string.IsNullOrEmpty(erRoot))
                 {
                     GamePathBox.Text = erRoot;
+                    Info("Detected Erenshor via Steam.");
+
+                    await AutoValidateAsync();
                     RefreshMods();
-                    Status("Detected Erenshor via Steam.");
-                    RunValidation(showPrompts: false, forceConfigPrompt: true);
                 }
                 else
                 {
-                    Status("Could not auto-detect Erenshor. Browse to your game folder.");
+                    Warn("Could not auto-detect Erenshor. Browse to your game folder.");
                 }
             }
-            catch (Exception ex)
-            {
-                Status("Auto-detect failed: " + ex.Message);
-            }
+            catch (Exception ex) { Error("Auto-detect failed: " + ex.Message); }
         }
 
-        private void DetectSteam_Click(object sender, RoutedEventArgs e) => TryAutoDetect();
+        private async Task AutoValidateAsync()
+        {
+            var root = GamePathBox.Text;
+            await GameSetupService.ValidateAndFixAsync(root, this);
+        }
 
-        private void Browse_Click(object sender, RoutedEventArgs e)
+        private async void Browse_Click(object sender, RoutedEventArgs e)
         {
             var dlg = new OpenFileDialog
             {
@@ -85,8 +87,9 @@ namespace ErenshorModInstaller.Wpf
             {
                 var folder = Path.GetDirectoryName(dlg.FileName)!;
                 GamePathBox.Text = folder;
+                Info("Game folder set.");
+                await AutoValidateAsync();
                 RefreshMods();
-                RunValidation(showPrompts: false, forceConfigPrompt: true);
             }
         }
 
@@ -95,13 +98,14 @@ namespace ErenshorModInstaller.Wpf
             var root = GamePathBox.Text;
             if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
             {
-                Status("Set a valid game folder first.");
+                Warn("Set a valid game folder first.");
                 return;
             }
+
             var plugins = Installer.GetPluginsDir(root);
             if (!Directory.Exists(plugins))
             {
-                Status("BepInEx/plugins not found. Run Erenshor once after installing BepInEx.");
+                Warn("BepInEx/plugins not found. Run Erenshor once after installing BepInEx.");
                 MessageBox.Show(
                     "The folder BepInEx\\plugins does not exist yet.\n\n" +
                     "Run Erenshor once after installing BepInEx so it can complete setup.",
@@ -111,148 +115,34 @@ namespace ErenshorModInstaller.Wpf
                 return;
             }
 
-            Process.Start(new ProcessStartInfo { FileName = plugins, UseShellExecute = true });
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = plugins, UseShellExecute = true });
         }
 
         private void LaunchErenshor_Click(object sender, RoutedEventArgs e)
         {
-            try
+            var root = GamePathBox.Text;
+            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
             {
-                var root = GamePathBox.Text;
-                if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
-                {
-                    Status("Set a valid game folder first.");
-                    return;
-                }
-
-                var exe = Path.Combine(root, "Erenshor.exe");
-                if (File.Exists(exe))
-                {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = exe,
-                        WorkingDirectory = root,
-                        UseShellExecute = true
-                    });
-                    Status("Launching Erenshor…");
-                    Close();
-                }
-                else
-                {
-                    Status("Erenshor.exe not found in this folder.");
-                    Process.Start(new ProcessStartInfo { FileName = root, UseShellExecute = true });
-                }
+                Warn("Set a valid game folder first.");
+                return;
             }
-            catch (Exception ex)
+
+            var exe = System.IO.Path.Combine(root, "Erenshor.exe");
+            if (File.Exists(exe))
             {
-                Status("Failed to launch: " + ex.Message);
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = exe,
+                    WorkingDirectory = root,
+                    UseShellExecute = true
+                });
+                Info("Launching Erenshor…");
+                Close();
             }
-        }
-
-        private void Validate_Click(object sender, RoutedEventArgs e) => RunValidation(showPrompts: true, forceConfigPrompt: false);
-
-        private void RunValidation(bool showPrompts, bool forceConfigPrompt)
-        {
-            try
+            else
             {
-                var root = GamePathBox.Text;
-                if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
-                {
-                    Status("Set a valid game folder first.");
-                    return;
-                }
-
-                string? ver;
-                try
-                {
-                    ver = Installer.ValidateBepInExOrThrow(root);
-                }
-                catch (Exception ex)
-                {
-                    Status(ex.Message);
-                    if (showPrompts)
-                    {
-                        MessageBox.Show(
-                            ex.Message +
-                            "\n\nDownload BepInEx 5.x (x64) and extract it into the Erenshor folder.",
-                            "BepInEx not detected",
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Warning);
-                    }
-                    return;
-                }
-
-                var plugins = Installer.GetPluginsDir(root);
-                if (!Directory.Exists(plugins))
-                {
-                    var msg = "BepInEx/plugins folder not found. Run Erenshor once to complete BepInEx setup.";
-                    Status(msg);
-                    if (showPrompts)
-                    {
-                        MessageBox.Show(
-                            "The folder BepInEx\\plugins does not exist yet.\n\n" +
-                            "Run Erenshor once after installing BepInEx so it can create the full folder structure.",
-                            "Plugins folder missing",
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Information);
-                    }
-                }
-                else
-                {
-                    Status($"BepInEx OK ({ver ?? "version unknown"}).");
-                }
-
-                var cfgStatus = Installer.GetBepInExConfigStatus(root, out var cfgPath);
-                switch (cfgStatus)
-                {
-                    case Installer.BepInExConfigStatus.Ok:
-                        break;
-
-                    case Installer.BepInExConfigStatus.MissingConfig:
-                        Status("BepInEx.cfg not found. Run Erenshor once to let BepInEx generate its configs.");
-                        if (showPrompts)
-                        {
-                            MessageBox.Show(
-                                "BepInEx.cfg was not found.\n\n" +
-                                "You must run Erenshor once after installing BepInEx so it can create the config files and folder structure.",
-                                "BepInEx config missing",
-                                MessageBoxButton.OK,
-                                MessageBoxImage.Warning);
-                        }
-                        break;
-
-                    case Installer.BepInExConfigStatus.MissingKey:
-                    case Installer.BepInExConfigStatus.WrongValue:
-                        Status("Warning: HideManagerGameObject should be TRUE for Erenshor mods to work correctly.");
-                        if (showPrompts || forceConfigPrompt)
-                        {
-                            var fix = MessageBox.Show(
-                                $"BepInEx.cfg found at:\n{cfgPath}\n\n" +
-                                "Setting 'HideManagerGameObject' should be TRUE for Erenshor mods to work correctly.\n" +
-                                "Would you like me to set it to true?",
-                                "BepInEx config",
-                                MessageBoxButton.YesNo,
-                                MessageBoxImage.Question);
-
-                            if (fix == MessageBoxResult.Yes)
-                            {
-                                try
-                                {
-                                    Installer.EnsureHideManagerGameObjectTrue(root);
-                                    Status("Updated BepInEx.cfg: HideManagerGameObject = true.");
-                                }
-                                catch (Exception ex2)
-                                {
-                                    Status("Failed to update config: " + ex2.Message);
-                                }
-                            }
-                        }
-                        break;
-                }
-            }
-            catch (Exception ex)
-            {
-                Status("Validation failed: " + ex.Message);
+                Warn("Erenshor.exe not found in this folder.");
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = root, UseShellExecute = true });
             }
         }
 
@@ -263,7 +153,10 @@ namespace ErenshorModInstaller.Wpf
                 Title = "Choose a Mod archive",
                 Filter = "Archives|*.zip;*.7z;*.rar|Zip|*.zip|7-Zip|*.7z|RAR|*.rar|All files|*.*"
             };
-            if (ofd.ShowDialog() == true) InstallAny(ofd.FileName);
+            if (ofd.ShowDialog() == true)
+            {
+                InstallAny(ofd.FileName);
+            }
         }
 
         private void RefreshMods_Click(object sender, RoutedEventArgs e) => RefreshMods();
@@ -272,55 +165,20 @@ namespace ErenshorModInstaller.Wpf
         {
             if (string.IsNullOrWhiteSpace(GamePathBox.Text))
             {
-                Status("Set game folder first.");
+                Warn("Set game folder first.");
                 return;
             }
 
             if (ModsList.SelectedItem is ModItem item)
             {
-                var plugins = Installer.GetPluginsDir(GamePathBox.Text);
-
-                if (item.IsFolder)
+                if (ModService.Uninstall(GamePathBox.Text, item, this))
                 {
-                    var folderName = item.FolderName!;
-                    var target = Path.Combine(plugins, folderName);
-                    if (!Directory.Exists(target)) { Status("Folder not found: " + folderName); return; }
-
-                    var confirm = MessageBox.Show(
-                        $"Remove mod folder '{folderName}'?",
-                        "Confirm Uninstall",
-                        MessageBoxButton.YesNo, MessageBoxImage.Question);
-
-                    if (confirm == MessageBoxResult.Yes)
-                    {
-                        try { Services.Installer.TryDeleteDirectory(target); Status($"Removed: {RelativeToGame(target)}"); RefreshMods(); }
-                        catch (Exception ex) { Status("Uninstall failed: " + ex.Message); }
-                    }
-                }
-                else
-                {
-                    var file = item.DllFileName!;
-                    var dllPath = Path.Combine(plugins, file);
-                    var dllDisabled = dllPath + ".disabled";
-                    var toDelete = File.Exists(dllPath) ? dllPath : dllDisabled;
-
-                    if (!File.Exists(toDelete)) { Status("File not found: " + file); return; }
-
-                    var confirm = MessageBox.Show(
-                        $"Remove DLL '{file}' from plugins?",
-                        "Confirm Uninstall",
-                        MessageBoxButton.YesNo, MessageBoxImage.Question);
-
-                    if (confirm == MessageBoxResult.Yes)
-                    {
-                        try { File.Delete(toDelete); Status($"Removed: ./BepInEx/plugins/{Path.GetFileName(toDelete)}"); RefreshMods(); }
-                        catch (Exception ex) { Status("Uninstall failed: " + ex.Message); }
-                    }
+                    RefreshMods();
                 }
             }
             else
             {
-                Status("Select a mod to uninstall.");
+                Info("Select a mod to uninstall.");
             }
         }
 
@@ -330,27 +188,13 @@ namespace ErenshorModInstaller.Wpf
             var item = (sender as FrameworkElement)?.DataContext as ModItem;
             if (item == null) return;
 
-            var root = GamePathBox.Text;
             try
             {
-                if (item.IsFolder)
-                {
-                    Installer.EnableFolderMod(root, item.FolderName!);
-                }
-                else
-                {
-                    Installer.EnableDll(root, item.DllFileName!);
-                }
-                Status($"Enabled: {item.DisplayName}");
+                ModService.Enable(item);
+                Info($"Enabled: {item.DisplayName}");
             }
-            catch (Exception ex)
-            {
-                Status("Enable failed: " + ex.Message);
-            }
-            finally
-            {
-                RefreshMods();
-            }
+            catch (Exception ex) { Error("Enable failed: " + ex.Message); }
+            finally { RefreshMods(); }
         }
 
         private void ModToggle_Unchecked(object sender, RoutedEventArgs e)
@@ -359,27 +203,13 @@ namespace ErenshorModInstaller.Wpf
             var item = (sender as FrameworkElement)?.DataContext as ModItem;
             if (item == null) return;
 
-            var root = GamePathBox.Text;
             try
             {
-                if (item.IsFolder)
-                {
-                    Installer.DisableFolderMod(root, item.FolderName!);
-                }
-                else
-                {
-                    Installer.DisableDll(root, item.DllFileName!);
-                }
-                Status($"Disabled: {item.DisplayName}");
+                ModService.Disable(item);
+                Info($"Disabled: {item.DisplayName}");
             }
-            catch (Exception ex)
-            {
-                Status("Disable failed: " + ex.Message);
-            }
-            finally
-            {
-                RefreshMods();
-            }
+            catch (Exception ex) { Error("Disable failed: " + ex.Message); }
+            finally { RefreshMods(); }
         }
 
         private void Window_DragOver(object sender, DragEventArgs e)
@@ -400,147 +230,118 @@ namespace ErenshorModInstaller.Wpf
             e.Handled = true;
         }
 
-        private void Window_Drop(object sender, DragEventArgs e)
+        private async void Window_Drop(object sender, DragEventArgs e)
         {
             try
             {
                 if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
                 var paths = (string[])e.Data.GetData(DataFormats.FileDrop);
+                
+                await AutoValidateAsync();
+
                 foreach (var p in paths) InstallAny(p);
             }
-            catch (Exception ex)
-            {
-                Status("Drop install failed: " + ex.Message);
-            }
+            catch (Exception ex) { Error("Drop install failed: " + ex.Message); }
         }
 
-        private void InstallAny(string path)
+        private static T? FindAncestor<T>(DependencyObject? current) where T : DependencyObject
+        {
+            while (current != null)
+            {
+                if (current is T match) return match;
+                current = VisualTreeHelper.GetParent(current);
+            }
+            return null;
+        }
+
+        private void ModsList_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            try
+            {
+                var element = e.OriginalSource as DependencyObject;
+                var lbi = FindAncestor<ListBoxItem>(element);
+                if (lbi == null) return;
+
+                lbi.IsSelected = true;
+
+                var item = lbi.DataContext as ModItem;
+                if (item == null) return;
+
+                var root = GamePathBox.Text;
+                var alts = ModService.GetAlternateVersions(root, item);
+                if (alts == null || alts.Count == 0)
+                {
+                    lbi.ContextMenu = null;
+                    return;
+                }
+
+                var menu = new ContextMenu();
+                foreach (var opt in alts)
+                {
+                    var mi = new MenuItem { Header = $"Switch to {opt.Label}", Tag = opt };
+                    mi.Click += (_, __) =>
+                    {
+                        if (ModService.SwitchToVersion(root, item, opt, this))
+                            RefreshMods();
+                    };
+                    menu.Items.Add(mi);
+                }
+
+                lbi.ContextMenu = menu;
+                menu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+                menu.IsOpen = true;
+
+                e.Handled = true;
+            }
+            catch { }
+        }
+
+        private async void InstallAny(string path)
         {
             var root = GamePathBox.Text;
             if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
             {
-                Status("Set a valid game folder first.");
+                Warn("Set a valid game folder first.");
+                return;
+            }
+            
+            await GameSetupService.ValidateAndFixAsync(root, this);
+            
+            var plugins = Installer.GetPluginsDir(root);
+            if (!Directory.Exists(plugins))
+            {
+                Warn("Install blocked: run Erenshor once to create BepInEx\\plugins.");
+                return;
+            }
+            var cfgPath = Path.Combine(Installer.GetBepInExDir(root), "config", "BepInEx.cfg");
+            if (!File.Exists(cfgPath))
+            {
+                Warn("Install blocked: run Erenshor once to generate BepInEx.cfg.");
                 return;
             }
 
-            if (!Directory.Exists(Installer.GetBepInExDir(root)))
+            if (ModService.InstallAny(root, path, this))
             {
-                MessageBox.Show(
-                    "BepInEx folder not found.\n\n" +
-                    "Please install BepInEx 5.x (x64) into the Erenshor folder before installing mods.",
-                    "BepInEx not detected",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-                Status("Install blocked: BepInEx not installed.");
-                return;
-            }
-
-            if (!Directory.Exists(Installer.GetPluginsDir(root)))
-            {
-                MessageBox.Show(
-                    "BepInEx\\plugins folder not found.\n\n" +
-                    "Run Erenshor once after installing BepInEx to complete setup, then try again.",
-                    "Plugins folder missing",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-                Status("Install blocked: run Erenshor once to create BepInEx\\plugins.");
-                return;
-            }
-
-            try { Installer.ValidateBepInExOrThrow(root); }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message, "BepInEx not detected", MessageBoxButton.OK, MessageBoxImage.Warning);
-                Status("Install aborted: " + ex.Message);
-                return;
-            }
-
-            var cfgStatus = Installer.GetBepInExConfigStatus(root, out var cfgPath);
-            if (cfgStatus == Installer.BepInExConfigStatus.MissingConfig)
-            {
-                MessageBox.Show(
-                    "BepInEx.cfg was not found.\n\n" +
-                    "You must run Erenshor once after installing BepInEx so it can create the config files and folder structure.",
-                    "BepInEx config missing",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-                Status("Install blocked: run Erenshor once to generate BepInEx.cfg.");
-                return;
-            }
-            if (cfgStatus == Installer.BepInExConfigStatus.MissingKey ||
-                cfgStatus == Installer.BepInExConfigStatus.WrongValue)
-            {
-                var fix = MessageBox.Show(
-                    $"BepInEx.cfg found at:\n{cfgPath}\n\n" +
-                    "Setting 'HideManagerGameObject' should be TRUE for Erenshor mods to work correctly.\n" +
-                    "Would you like me to set it to true?",
-                    "BepInEx config",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question);
-
-                if (fix == MessageBoxResult.Yes)
-                {
-                    try { Installer.EnsureHideManagerGameObjectTrue(root); }
-                    catch (Exception ex2)
-                    {
-                        Status("Failed to update config: " + ex2.Message);
-                    }
-                }
-                else
-                {
-                    Status("Warning: HideManagerGameObject is not true. Some mods may not behave correctly.");
-                }
-            }
-
-            try
-            {
-                Services.Installer.InstallResult result;
-                if (Directory.Exists(path))
-                {
-                    result = Services.Installer.InstallFromDirectory(root, path);
-                }
-                else if (path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
-                {
-                    var plugins = Installer.GetPluginsDir(root);
-                    var fileName = Path.GetFileName(path);
-                    var target = Path.Combine(plugins, fileName);
-                    if (File.Exists(target))
-                    {
-                        var overwrite = MessageBox.Show(
-                            $"'{fileName}' already exists in plugins. Overwrite?",
-                            "File exists",
-                            MessageBoxButton.YesNo,
-                            MessageBoxImage.Question);
-                        if (overwrite != MessageBoxResult.Yes)
-                        {
-                            Status("Install canceled.");
-                            return;
-                        }
-                    }
-                    result = Services.Installer.InstallDll(root, path);
-                }
-                else
-                {
-                    result = Services.Installer.InstallFromAny(root, path);
-                }
-
-                Status($"Installed into: {RelativeToGame(result.TargetDir)}");
-                if (!string.IsNullOrEmpty(result.Warning)) Status(result.Warning);
                 RefreshMods();
             }
-            catch (Exception ex)
+        }
+
+        public void Info(string message)  => SetStatus(message);
+        public void Warn(string message)  => SetStatus(message);
+        public void Error(string message) => SetStatus(message);
+        public void Clear()               => SetStatus(string.Empty);
+
+        private void SetStatus(string msg)
+        {
+            if (!Dispatcher.CheckAccess())
             {
-                Status("Install failed: " + ex.Message);
+                Dispatcher.Invoke(() => StatusBlock.Text = msg, DispatcherPriority.Background);
+            }
+            else
+            {
+                StatusBlock.Text = msg;
             }
         }
-
-        private string RelativeToGame(string fullPath)
-        {
-            var root = GamePathBox.Text;
-            return string.IsNullOrWhiteSpace(root) ? fullPath : fullPath.Replace(root, ".").Trim();
-        }
-
-        private void Status(string msg) => StatusBlock.Text = msg;
 
         private void RefreshMods()
         {
@@ -553,45 +354,15 @@ namespace ErenshorModInstaller.Wpf
             var plugins = Installer.GetPluginsDir(root);
             if (!Directory.Exists(plugins))
             {
-                Status("BepInEx/plugins not found. Run Erenshor once after installing BepInEx.");
+                Warn("BepInEx/plugins not found. Run Erenshor once after installing BepInEx.");
                 _isUpdatingList = false;
                 return;
             }
 
+            ModIndex.EnsureMinimalIndex(root);
 
-            var dirs = Directory.GetDirectories(plugins).OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase);
-            foreach (var dir in dirs)
-            {
-                var (total, disabled) = Installer.GetFolderDllState(dir);
-                var item = new ModItem
-                {
-                    IsFolder = true,
-                    FolderName = Path.GetFileName(dir),
-                    DisplayName = Path.GetFileName(dir),
-                    HasDll = total > 0,
-                    IsPartial = (disabled > 0 && disabled < total),
-                    IsEnabled = (total == 0) ? true : (disabled == 0)
-                };
-                Mods.Add(item);
-            }
-            
-            var enabledDlls = Directory.GetFiles(plugins, "*.dll", SearchOption.TopDirectoryOnly)
-                                       .Select(Path.GetFileNameWithoutExtension);
-            var disabledDlls = Directory.GetFiles(plugins, "*.dll.disabled", SearchOption.TopDirectoryOnly)
-                                        .Select(f => Path.GetFileName(f)!.Replace(".dll.disabled", "", StringComparison.OrdinalIgnoreCase));
-
-            var allDllBaseNames = enabledDlls.Union(disabledDlls).Distinct().OrderBy(n => n, StringComparer.OrdinalIgnoreCase);
-            foreach (var baseName in allDllBaseNames)
-            {
-                var isEnabled = File.Exists(Path.Combine(plugins, baseName + ".dll"));
-                Mods.Add(new ModItem
-                {
-                    IsFolder = false,
-                    DisplayName = baseName,           
-                    DllFileName = baseName + ".dll",
-                    IsEnabled = isEnabled
-                });
-            }
+            foreach (var m in ModService.ListInstalledMods(root))
+                Mods.Add(m);
 
             _isUpdatingList = false;
         }
