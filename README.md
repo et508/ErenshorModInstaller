@@ -1,3 +1,5 @@
+![GitHub Release](https://img.shields.io/github/v/release/et508/ErenshorModInstaller) ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/et508/ErenshorModInstaller/total)
+
 # Erenshor Mod Installer
 
 Easy to use tool to simplify the installation and use of mods for Erenshor. 
