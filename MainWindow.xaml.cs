@@ -137,7 +137,7 @@ namespace ErenshorModInstaller.Wpf
                     UseShellExecute = true
                 });
                 Info("Launching Erenshor…");
-                Close();
+                //Close();
             }
             else
             {
@@ -365,6 +365,25 @@ namespace ErenshorModInstaller.Wpf
                 Mods.Add(m);
 
             _isUpdatingList = false;
+        }
+        
+        private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton == MouseButton.Left)
+            {
+                // Allow dragging the window by the custom title bar
+                try { DragMove(); } catch { /* ignore while maximizing */ }
+            }
+        }
+
+        private void Minimize_Click(object sender, RoutedEventArgs e)
+        {
+            WindowState = WindowState.Minimized;
+        }
+
+        private void Close_Click(object sender, RoutedEventArgs e)
+        {
+            Close();
         }
     }
 }

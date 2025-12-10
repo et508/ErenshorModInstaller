@@ -2,95 +2,261 @@
 <Window x:Class="ErenshorModInstaller.Wpf.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wc="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="Erenshor Mod Installer"
         Height="520" Width="700"
         WindowStartupLocation="CenterScreen"
         AllowDrop="True"
         Drop="Window_Drop"
-        DragOver="Window_DragOver">
-  <Grid Margin="14">
-    <Grid.RowDefinitions>
-      <RowDefinition Height="Auto"/>
-      <RowDefinition Height="8"/>
-      <RowDefinition Height="Auto"/>
-      <RowDefinition Height="8"/>
-      <RowDefinition Height="*"/>
-      <RowDefinition Height="8"/>
-      <RowDefinition Height="Auto"/>
-    </Grid.RowDefinitions>
+        DragOver="Window_DragOver"
+        WindowStyle="None"
+        Background="#1E1F24"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True">
 
-    <StackPanel Grid.Row="2" Orientation="Horizontal" VerticalAlignment="Center">
-      <TextBlock Text="Game Folder:" VerticalAlignment="Center"/>
-      <TextBox x:Name="GamePathBox" Width="350" Margin="5,0,8,0"/>
-      <Button Content="Browse…" Width="80" Margin="0,0,8,0" Click="Browse_Click"/>
-      <Button Content="Open Plugins Folder" Width="120" Click="OpenPlugins_Click"/>
-    </StackPanel>
+  <!-- Real rounded corners + resize border via WindowChrome -->
+  <wc:WindowChrome.WindowChrome>
+    <wc:WindowChrome
+        CaptionHeight="0"
+        CornerRadius="25"
+        GlassFrameThickness="1"
+        ResizeBorderThickness="7"
+        UseAeroCaptionButtons="False"/>
+  </wc:WindowChrome.WindowChrome>
 
-    <Border Grid.Row="4" Padding="10" BorderBrush="#DDDDDD" BorderThickness="1" CornerRadius="6">
-      <Grid>
+  <!-- ========== THEME + STYLES ========== -->
+  <Window.Resources>
+    <!-- Text colors -->
+    <SolidColorBrush x:Key="PrimaryText" Color="#E6E6E6"/>
+    <SolidColorBrush x:Key="SecondaryText" Color="#AAAAAA"/>
+    <SolidColorBrush x:Key="AccentText" Color="#7289DA"/>
+
+    <!-- Title bar + window brushes -->
+    <SolidColorBrush x:Key="TitleBarBg" Color="#2C2F33"/>
+    <SolidColorBrush x:Key="TitleText" Color="#FFFFFF"/>
+
+    <!-- Base button style -->
+    <Style TargetType="Button">
+      <Setter Property="Background" Value="#2C2F33"/>
+      <Setter Property="Foreground" Value="{StaticResource PrimaryText}"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="BorderBrush" Value="#5865F2"/>
+      <Setter Property="BorderThickness" Value="1.2"/>
+      <Setter Property="Padding" Value="8,4"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="SnapsToDevicePixels" Value="True"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="border"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="6">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="border" Property="Background" Value="#3A3F47"/>
+                <Setter TargetName="border" Property="BorderBrush" Value="#7289DA"/>
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="border" Property="Background" Value="#202225"/>
+                <Setter TargetName="border" Property="BorderBrush" Value="#404EED"/>
+                <Setter Property="Foreground" Value="#BBBBBB"/>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="border" Property="Opacity" Value="0.5"/>
+                <Setter Property="Cursor" Value="Arrow"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- Title bar button style -->
+    <Style x:Key="TitleBarButton" TargetType="Button">
+      <Setter Property="Width" Value="34"/>
+      <Setter Property="Height" Value="24"/>
+      <Setter Property="Margin" Value="4,6,0,6"/>
+      <Setter Property="Padding" Value="0"/>
+      <Setter Property="Background" Value="#2C2F33"/>
+      <Setter Property="Foreground" Value="{StaticResource PrimaryText}"/>
+      <Setter Property="BorderBrush" Value="#3A3F47"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="b" Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="4"
+                    wc:WindowChrome.IsHitTestVisibleInChrome="True">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="b" Property="Background" Value="#3A3F47"/>
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="b" Property="Background" Value="#202225"/>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="b" Property="Opacity" Value="0.5"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </Window.Resources>
+
+  <!-- ========== FRAME LAYER (gap-free stroke) + CONTENT ========== -->
+  <Grid SnapsToDevicePixels="True">
+    <!-- 1) Rounded background fill -->
+    <Border CornerRadius="25">
+      <Border.Background>
+        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+          <GradientStop Color="#232428" Offset="0"/>
+          <GradientStop Color="#1B1C20" Offset="1"/>
+        </LinearGradientBrush>
+      </Border.Background>
+    </Border>
+
+    <!-- 2) Crisp 1px outline using a Rectangle stroke.
+           Margin=0.5 ensures the stroke lands on physical pixels and closes perfectly in the corners. -->
+    <Rectangle RadiusX="15" RadiusY="0"
+               StrokeThickness="1"
+               Fill="Transparent"
+               IsHitTestVisible="False"
+               SnapsToDevicePixels="True"
+               Margin="0.5"/>
+
+    <!-- 3) App content -->
+    <Grid>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="36"/>   <!-- Title bar -->
+        <RowDefinition Height="*"/>    <!-- Content -->
+      </Grid.RowDefinitions>
+
+      <!-- ===== Title Bar ===== -->
+      <Grid Grid.Row="0"
+            Background="{StaticResource TitleBarBg}"
+            MouseDown="TitleBar_MouseDown"
+            wc:WindowChrome.IsHitTestVisibleInChrome="True">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+
+        <TextBlock Text="Erenshor Mod Installer"
+                   Margin="12,0,0,0"
+                   VerticalAlignment="Center"
+                   Foreground="{StaticResource TitleText}"
+                   FontWeight="SemiBold"/>
+
+        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+          <Button Style="{StaticResource TitleBarButton}" Content="—" Click="Minimize_Click" ToolTip="Minimize"/>
+          <Button Style="{StaticResource TitleBarButton}" Content="X"
+                  Background="#D83C3E" BorderBrush="#B02B2C" Click="Close_Click" ToolTip="Close"/>
+        </StackPanel>
+      </Grid>
+
+      <!-- ===== Your Original Content ===== -->
+      <Grid Grid.Row="1" Margin="14">
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto"/>
           <RowDefinition Height="8"/>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="8"/>
           <RowDefinition Height="*"/>
+          <RowDefinition Height="8"/>
+          <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <StackPanel Orientation="Horizontal" Grid.Row="0" VerticalAlignment="Center">
-          <TextBlock x:Name="StatusBlock" Margin="0,5,0,5" VerticalAlignment="Center" TextWrapping="Wrap"/>
+        <!-- Game folder row -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" VerticalAlignment="Center">
+          <TextBlock Text="Game Folder:" VerticalAlignment="Center" Foreground="{StaticResource PrimaryText}"/>
+          <TextBox x:Name="GamePathBox" Width="350" Margin="5,0,8,0"
+                   Background="#2C2F33" Foreground="{StaticResource PrimaryText}"
+                   BorderBrush="#404EED"/>
+          <Button Content="Browse…" Width="80" Margin="0,0,8,0" Click="Browse_Click"/>
+          <Button Content="Open Plugins Folder" Width="120" Click="OpenPlugins_Click"/>
         </StackPanel>
 
-        <Grid Grid.Row="2">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="12"/>
-            <ColumnDefinition Width="240"/>
-          </Grid.ColumnDefinitions>
+        <Border Grid.Row="4" Padding="10" BorderBrush="#303030" BorderThickness="1" CornerRadius="6" Background="#1E1F24">
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="8"/>
+              <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
 
-          <GroupBox Header="Installed Mods" Grid.Column="0">
-            <DockPanel LastChildFill="True">
-              <ListBox x:Name="ModsList"
-                       Margin="6"
-                       HorizontalContentAlignment="Stretch"
-                       ItemsSource="{Binding Mods}"
-                       PreviewMouseRightButtonDown="ModsList_PreviewMouseRightButtonDown">
-                <ListBox.ItemTemplate>
-                  <DataTemplate>
-                    <StackPanel Orientation="Horizontal">
-                      <CheckBox Margin="0,0,8,0"
-                                IsChecked="{Binding IsEnabled}"
-                                Checked="ModToggle_Checked"
-                                Unchecked="ModToggle_Unchecked"/>
-                      <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" ToolTip="{Binding Guid}"/>
-                      <TextBlock Margin="8,0,0,0" Foreground="#888" VerticalAlignment="Center"
-                                 Text="{Binding StatusSuffix}"/>
-                      <TextBlock Margin="6,0,0,0" Foreground="#999" VerticalAlignment="Center"
-                                 Text="{Binding Version}"/>
-                    </StackPanel>
-                  </DataTemplate>
-                </ListBox.ItemTemplate>
-              </ListBox>
-            </DockPanel>
-          </GroupBox>
+            <StackPanel Orientation="Horizontal" Grid.Row="0" VerticalAlignment="Center">
+              <TextBlock x:Name="StatusBlock" Margin="0,5,0,5"
+                         VerticalAlignment="Center"
+                         TextWrapping="Wrap"
+                         Foreground="{StaticResource SecondaryText}"/>
+            </StackPanel>
 
-          <StackPanel Grid.Column="2">
-            <TextBlock Text="Install a Mod" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,10"/>
-            <TextBlock Text="Drop anywhere in this window, or click the button below."
-                       TextWrapping="Wrap"/>
-            <Button Content="Install Mod" Width="90" Margin="0,10,0,10" Click="InstallZip_Click"/>
-            <Separator/>
-            <TextBlock Text="Manage" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,10,0,10"/>
-            <Button Content="Refresh List" Width="80" Margin="0,0,0,8" Click="RefreshMods_Click"/>
-            <Button Content="Uninstall Selected" Width="120" Click="Uninstall_Click"/>
-          </StackPanel>
-        </Grid>
+            <Grid Grid.Row="2">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="240"/>
+              </Grid.ColumnDefinitions>
+
+              <GroupBox Header="Installed Mods" Grid.Column="0" Foreground="{StaticResource AccentText}">
+                <DockPanel LastChildFill="True">
+                  <ListBox x:Name="ModsList"
+                           Margin="6"
+                           HorizontalContentAlignment="Stretch"
+                           ItemsSource="{Binding Mods}"
+                           PreviewMouseRightButtonDown="ModsList_PreviewMouseRightButtonDown"
+                           Background="#232428" BorderBrush="#404EED">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate>
+                        <StackPanel Orientation="Horizontal">
+                          <CheckBox Margin="0,0,8,0"
+                                    IsChecked="{Binding IsEnabled}"
+                                    Checked="ModToggle_Checked"
+                                    Unchecked="ModToggle_Unchecked"/>
+                          <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" Foreground="{StaticResource PrimaryText}" ToolTip="{Binding Guid}"/>
+                          <TextBlock Margin="8,0,0,0" Foreground="{StaticResource SecondaryText}" VerticalAlignment="Center" Text="{Binding StatusSuffix}"/>
+                          <TextBlock Margin="6,0,0,0" Foreground="{StaticResource SecondaryText}" VerticalAlignment="Center" Text="{Binding Version}"/>
+                        </StackPanel>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                </DockPanel>
+              </GroupBox>
+
+              <StackPanel Grid.Column="2">
+                <TextBlock Text="Install a Mod" FontWeight="Bold" HorizontalAlignment="Center"
+                           Margin="0,0,0,10" Foreground="{StaticResource AccentText}"/>
+                <TextBlock Text="Drop anywhere in this window, or click the button below."
+                           TextWrapping="Wrap" Foreground="{StaticResource SecondaryText}"/>
+                <Button Content="Install Mod" Width="90" Margin="0,10,0,10" Click="InstallZip_Click"/>
+                <Separator/>
+                <TextBlock Text="Manage" FontWeight="Bold" HorizontalAlignment="Center"
+                           Margin="0,10,0,10" Foreground="{StaticResource AccentText}"/>
+                <Button Content="Refresh List" Width="80" Margin="0,0,0,8" Click="RefreshMods_Click"/>
+                <Button Content="Uninstall Selected" Width="120" Click="Uninstall_Click"/>
+              </StackPanel>
+            </Grid>
+          </Grid>
+        </Border>
+
+        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Left">
+          <TextBlock Text="{Binding AppVersion}" Foreground="{StaticResource SecondaryText}"
+                     VerticalAlignment="Bottom" Margin="0,0,0,-10"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right">
+          <Button Content="Launch Erenshor" Height="30" Width="120" Click="LaunchErenshor_Click"/>
+        </StackPanel>
       </Grid>
-    </Border>
-
-    <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Left">
-      <TextBlock Text="{Binding AppVersion}" Foreground="DarkGray" VerticalAlignment="Bottom" Margin="0,0,0,-10"/>
-    </StackPanel>
-
-    <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right">
-      <Button Content="Launch Erenshor" Height="30" Width="120" Margin="0,0,0,0" Click="LaunchErenshor_Click"/>
-    </StackPanel>
+    </Grid>
   </Grid>
 </Window>
