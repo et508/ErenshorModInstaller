@@ -4,66 +4,64 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:wc="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="Erenshor Mod Installer"
-        Height="520" Width="700"
+        Height="800" Width="900"
         WindowStartupLocation="CenterScreen"
         AllowDrop="True"
         Drop="Window_Drop"
         DragOver="Window_DragOver"
         WindowStyle="None"
-        Background="#1E1F24"
+        Background="Transparent"
         UseLayoutRounding="True"
         SnapsToDevicePixels="True">
 
-  <!-- Real rounded corners + resize border via WindowChrome -->
   <wc:WindowChrome.WindowChrome>
     <wc:WindowChrome
         CaptionHeight="0"
-        CornerRadius="25"
+        CornerRadius="16"
         GlassFrameThickness="1"
-        ResizeBorderThickness="7"
+        ResizeBorderThickness="8"
         UseAeroCaptionButtons="False"/>
   </wc:WindowChrome.WindowChrome>
 
-  <!-- ========== THEME + STYLES ========== -->
   <Window.Resources>
-    <!-- Text colors -->
-    <SolidColorBrush x:Key="PrimaryText" Color="#E6E6E6"/>
-    <SolidColorBrush x:Key="SecondaryText" Color="#AAAAAA"/>
-    <SolidColorBrush x:Key="AccentText" Color="#7289DA"/>
+    <!-- Modern Color Palette -->
+    <SolidColorBrush x:Key="WindowBg" Color="#0F1014"/>
+    <SolidColorBrush x:Key="CardBg" Color="#1A1D23"/>
+    <SolidColorBrush x:Key="CardBgHover" Color="#20242C"/>
+    <SolidColorBrush x:Key="SidebarBg" Color="#151820"/>
+    <SolidColorBrush x:Key="AccentPrimary" Color="#6366F1"/>
+    <SolidColorBrush x:Key="AccentHover" Color="#7C3AED"/>
+    <SolidColorBrush x:Key="TextPrimary" Color="#F1F5F9"/>
+    <SolidColorBrush x:Key="TextSecondary" Color="#94A3B8"/>
+    <SolidColorBrush x:Key="TextMuted" Color="#64748B"/>
+    <SolidColorBrush x:Key="BorderColor" Color="#2D3139"/>
+    <SolidColorBrush x:Key="SuccessColor" Color="#10B981"/>
+    <SolidColorBrush x:Key="DangerColor" Color="#EF4444"/>
 
-    <!-- Title bar + window brushes -->
-    <SolidColorBrush x:Key="TitleBarBg" Color="#2C2F33"/>
-    <SolidColorBrush x:Key="TitleText" Color="#FFFFFF"/>
-
-    <!-- Base button style -->
-    <Style TargetType="Button">
-      <Setter Property="Background" Value="#2C2F33"/>
-      <Setter Property="Foreground" Value="{StaticResource PrimaryText}"/>
+    <!-- Primary Button Style -->
+    <Style x:Key="PrimaryButton" TargetType="Button">
+      <Setter Property="Background" Value="{StaticResource AccentPrimary}"/>
+      <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
       <Setter Property="FontWeight" Value="SemiBold"/>
-      <Setter Property="BorderBrush" Value="#5865F2"/>
-      <Setter Property="BorderThickness" Value="1.2"/>
-      <Setter Property="Padding" Value="8,4"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Padding" Value="20,10"/>
       <Setter Property="Cursor" Value="Hand"/>
-      <Setter Property="SnapsToDevicePixels" Value="True"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
             <Border x:Name="border"
                     Background="{TemplateBinding Background}"
-                    BorderBrush="{TemplateBinding BorderBrush}"
-                    BorderThickness="{TemplateBinding BorderThickness}"
-                    CornerRadius="6">
+                    CornerRadius="8"
+                    Padding="{TemplateBinding Padding}">
               <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="border" Property="Background" Value="#3A3F47"/>
-                <Setter TargetName="border" Property="BorderBrush" Value="#7289DA"/>
+                <Setter TargetName="border" Property="Background" Value="{StaticResource AccentHover}"/>
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
-                <Setter TargetName="border" Property="Background" Value="#202225"/>
-                <Setter TargetName="border" Property="BorderBrush" Value="#404EED"/>
-                <Setter Property="Foreground" Value="#BBBBBB"/>
+                <Setter TargetName="border" Property="Background" Value="#5B21B6"/>
               </Trigger>
               <Trigger Property="IsEnabled" Value="False">
                 <Setter TargetName="border" Property="Opacity" Value="0.5"/>
@@ -75,35 +73,180 @@
       </Setter>
     </Style>
 
-    <!-- Title bar button style -->
-    <Style x:Key="TitleBarButton" TargetType="Button">
-      <Setter Property="Width" Value="34"/>
-      <Setter Property="Height" Value="24"/>
-      <Setter Property="Margin" Value="4,6,0,6"/>
-      <Setter Property="Padding" Value="0"/>
-      <Setter Property="Background" Value="#2C2F33"/>
-      <Setter Property="Foreground" Value="{StaticResource PrimaryText}"/>
-      <Setter Property="BorderBrush" Value="#3A3F47"/>
+    <!-- Secondary Button Style -->
+    <Style x:Key="SecondaryButton" TargetType="Button">
+      <Setter Property="Background" Value="{StaticResource CardBg}"/>
+      <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+      <Setter Property="FontWeight" Value="Medium"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderColor}"/>
       <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Padding" Value="16,8"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="border"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="8"
+                    Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="border" Property="Background" Value="{StaticResource CardBgHover}"/>
+                <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource AccentPrimary}"/>
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="border" Property="Background" Value="#0F1014"/>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="border" Property="Opacity" Value="0.5"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- Title Bar Button -->
+    <Style x:Key="TitleBarButton" TargetType="Button">
+      <Setter Property="Width" Value="46"/>
+      <Setter Property="Height" Value="32"/>
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="FontSize" Value="14"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
             <Border x:Name="b" Background="{TemplateBinding Background}"
-                    BorderBrush="{TemplateBinding BorderBrush}"
-                    BorderThickness="{TemplateBinding BorderThickness}"
-                    CornerRadius="4"
                     wc:WindowChrome.IsHitTestVisibleInChrome="True">
               <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="b" Property="Background" Value="#3A3F47"/>
+                <Setter TargetName="b" Property="Background" Value="#252933"/>
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
-                <Setter TargetName="b" Property="Background" Value="#202225"/>
+                <Setter TargetName="b" Property="Background" Value="#1A1D23"/>
               </Trigger>
-              <Trigger Property="IsEnabled" Value="False">
-                <Setter TargetName="b" Property="Opacity" Value="0.5"/>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- Close Button Style -->
+    <Style x:Key="CloseButton" TargetType="Button" BasedOn="{StaticResource TitleBarButton}">
+      <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+          <Setter Property="Background" Value="{StaticResource DangerColor}"/>
+          <Setter Property="Foreground" Value="White"/>
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+
+    <!-- Modern TextBox -->
+    <Style TargetType="TextBox">
+      <Setter Property="Background" Value="{StaticResource CardBg}"/>
+      <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderColor}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Padding" Value="12,8"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="TextBox">
+            <Border x:Name="border"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="8">
+              <ScrollViewer x:Name="PART_ContentHost" Margin="2"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsFocused" Value="True">
+                <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource AccentPrimary}"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- Modern ListBox -->
+    <Style TargetType="ListBox">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+    </Style>
+
+    <!-- ListBox Item -->
+    <Style TargetType="ListBoxItem">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Padding" Value="12,10"/>
+      <Setter Property="Margin" Value="0,0,0,4"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ListBoxItem">
+            <Border x:Name="border"
+                    Background="{TemplateBinding Background}"
+                    BorderThickness="0"
+                    CornerRadius="8"
+                    Padding="{TemplateBinding Padding}">
+              <ContentPresenter/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="border" Property="Background" Value="{StaticResource CardBgHover}"/>
+              </Trigger>
+              <Trigger Property="IsSelected" Value="True">
+                <Setter TargetName="border" Property="Background" Value="#252933"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- Modern CheckBox -->
+    <Style TargetType="CheckBox">
+      <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="CheckBox">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <Border x:Name="checkBorder"
+                      Width="18" Height="18"
+                      Background="{StaticResource CardBg}"
+                      BorderBrush="{StaticResource BorderColor}"
+                      BorderThickness="2"
+                      CornerRadius="4">
+                <Path x:Name="checkMark"
+                      Data="M 0 5 L 4 9 L 10 1"
+                      Stroke="{StaticResource TextPrimary}"
+                      StrokeThickness="2"
+                      Visibility="Collapsed"
+                      Margin="2"/>
+              </Border>
+              <ContentPresenter Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"/>
+            </Grid>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="checkMark" Property="Visibility" Value="Visible"/>
+                <Setter TargetName="checkBorder" Property="Background" Value="{StaticResource AccentPrimary}"/>
+                <Setter TargetName="checkBorder" Property="BorderBrush" Value="{StaticResource AccentPrimary}"/>
+              </Trigger>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="checkBorder" Property="BorderBrush" Value="{StaticResource AccentPrimary}"/>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -112,151 +255,199 @@
     </Style>
   </Window.Resources>
 
-  <!-- ========== FRAME LAYER (gap-free stroke) + CONTENT ========== -->
-  <Grid SnapsToDevicePixels="True">
-    <!-- 1) Rounded background fill -->
-    <Border CornerRadius="25">
-      <Border.Background>
-        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-          <GradientStop Color="#232428" Offset="0"/>
-          <GradientStop Color="#1B1C20" Offset="1"/>
-        </LinearGradientBrush>
-      </Border.Background>
-    </Border>
+  <!-- Drop Shadow Effect + Glass Border -->
+  <Border CornerRadius="0" Background="{StaticResource WindowBg}" BorderBrush="#3D4049" BorderThickness="1">
+    <Border.Effect>
+      <DropShadowEffect Color="Black" BlurRadius="30" ShadowDepth="0" Opacity="0.8"/>
+    </Border.Effect>
 
-    <!-- 2) Crisp 1px outline using a Rectangle stroke.
-           Margin=0.5 ensures the stroke lands on physical pixels and closes perfectly in the corners. -->
-    <Rectangle RadiusX="15" RadiusY="0"
-               StrokeThickness="1"
-               Fill="Transparent"
-               IsHitTestVisible="False"
-               SnapsToDevicePixels="True"
-               Margin="0.5"/>
-
-    <!-- 3) App content -->
     <Grid>
       <Grid.RowDefinitions>
-        <RowDefinition Height="36"/>   <!-- Title bar -->
-        <RowDefinition Height="*"/>    <!-- Content -->
+        <RowDefinition Height="48"/>
+        <RowDefinition Height="*"/>
       </Grid.RowDefinitions>
 
-      <!-- ===== Title Bar ===== -->
-      <Grid Grid.Row="0"
-            Background="{StaticResource TitleBarBg}"
-            MouseDown="TitleBar_MouseDown"
-            wc:WindowChrome.IsHitTestVisibleInChrome="True">
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition/>
-          <ColumnDefinition Width="Auto"/>
-        </Grid.ColumnDefinitions>
+      <!-- Title Bar -->
+      <Border Grid.Row="0" Background="{StaticResource CardBg}" CornerRadius="0,0,0,0" BorderThickness="0,0,0,1" BorderBrush="{StaticResource BorderColor}"
+              MouseDown="TitleBar_MouseDown">
+        <Grid wc:WindowChrome.IsHitTestVisibleInChrome="True">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
 
-        <TextBlock Text="Erenshor Mod Installer"
-                   Margin="12,0,0,0"
-                   VerticalAlignment="Center"
-                   Foreground="{StaticResource TitleText}"
-                   FontWeight="SemiBold"/>
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+            <Image Source="pack://application:,,,/icon.ico" Width="20" Height="20" Margin="0,0,8,0" 
+                   RenderOptions.BitmapScalingMode="HighQuality"/>
+            <TextBlock Text="Erenshor Mod Manager" FontSize="13" FontWeight="SemiBold" 
+                       Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center"/>
+            <TextBlock Text="{Binding AppVersion}" FontSize="11" 
+                       Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="8,0,0,0"/>
+          </StackPanel>
 
-        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
-          <Button Style="{StaticResource TitleBarButton}" Content="—" Click="Minimize_Click" ToolTip="Minimize"/>
-          <Button Style="{StaticResource TitleBarButton}" Content="X"
-                  Background="#D83C3E" BorderBrush="#B02B2C" Click="Close_Click" ToolTip="Close"/>
-        </StackPanel>
-      </Grid>
+          <StackPanel Grid.Column="1" Orientation="Horizontal">
+            <Button Style="{StaticResource TitleBarButton}" Content="―" Click="Minimize_Click" ToolTip="Minimize"/>
+            <Button Style="{StaticResource CloseButton}" Content="✕" Click="Close_Click" ToolTip="Close"/>
+          </StackPanel>
+        </Grid>
+      </Border>
 
-      <!-- ===== Your Original Content ===== -->
-      <Grid Grid.Row="1" Margin="14">
+      <!-- Main Content -->
+      <Grid Grid.Row="1" Margin="24,20,24,24">
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto"/>
-          <RowDefinition Height="8"/>
-          <RowDefinition Height="Auto"/>
-          <RowDefinition Height="8"/>
+          <RowDefinition Height="20"/>
           <RowDefinition Height="*"/>
-          <RowDefinition Height="8"/>
+          <RowDefinition Height="20"/>
           <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Game folder row -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" VerticalAlignment="Center">
-          <TextBlock Text="Game Folder:" VerticalAlignment="Center" Foreground="{StaticResource PrimaryText}"/>
-          <TextBox x:Name="GamePathBox" Width="350" Margin="5,0,8,0"
-                   Background="#2C2F33" Foreground="{StaticResource PrimaryText}"
-                   BorderBrush="#404EED"/>
-          <Button Content="Browse…" Width="80" Margin="0,0,8,0" Click="Browse_Click"/>
-          <Button Content="Open Plugins Folder" Width="120" Click="OpenPlugins_Click"/>
-        </StackPanel>
-
-        <Border Grid.Row="4" Padding="10" BorderBrush="#303030" BorderThickness="1" CornerRadius="6" Background="#1E1F24">
+        <!-- Game Path Section -->
+        <Border Grid.Row="0" Background="{StaticResource CardBg}" CornerRadius="12" Padding="20" BorderThickness="1" BorderBrush="{StaticResource BorderColor}">
           <Grid>
             <Grid.RowDefinitions>
               <RowDefinition Height="Auto"/>
-              <RowDefinition Height="8"/>
-              <RowDefinition Height="*"/>
+              <RowDefinition Height="12"/>
+              <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <StackPanel Orientation="Horizontal" Grid.Row="0" VerticalAlignment="Center">
-              <TextBlock x:Name="StatusBlock" Margin="0,5,0,5"
-                         VerticalAlignment="Center"
-                         TextWrapping="Wrap"
-                         Foreground="{StaticResource SecondaryText}"/>
-            </StackPanel>
-
+            <TextBlock Text="Game Installation" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
+            
             <Grid Grid.Row="2">
               <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="12"/>
-                <ColumnDefinition Width="240"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="Auto"/>
               </Grid.ColumnDefinitions>
 
-              <GroupBox Header="Installed Mods" Grid.Column="0" Foreground="{StaticResource AccentText}">
-                <DockPanel LastChildFill="True">
-                  <ListBox x:Name="ModsList"
-                           Margin="6"
-                           HorizontalContentAlignment="Stretch"
-                           ItemsSource="{Binding Mods}"
-                           PreviewMouseRightButtonDown="ModsList_PreviewMouseRightButtonDown"
-                           Background="#232428" BorderBrush="#404EED">
-                    <ListBox.ItemTemplate>
-                      <DataTemplate>
-                        <StackPanel Orientation="Horizontal">
-                          <CheckBox Margin="0,0,8,0"
-                                    IsChecked="{Binding IsEnabled}"
-                                    Checked="ModToggle_Checked"
-                                    Unchecked="ModToggle_Unchecked"/>
-                          <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" Foreground="{StaticResource PrimaryText}" ToolTip="{Binding Guid}"/>
-                          <TextBlock Margin="8,0,0,0" Foreground="{StaticResource SecondaryText}" VerticalAlignment="Center" Text="{Binding StatusSuffix}"/>
-                          <TextBlock Margin="6,0,0,0" Foreground="{StaticResource SecondaryText}" VerticalAlignment="Center" Text="{Binding Version}"/>
-                        </StackPanel>
-                      </DataTemplate>
-                    </ListBox.ItemTemplate>
-                  </ListBox>
-                </DockPanel>
-              </GroupBox>
-
-              <StackPanel Grid.Column="2">
-                <TextBlock Text="Install a Mod" FontWeight="Bold" HorizontalAlignment="Center"
-                           Margin="0,0,0,10" Foreground="{StaticResource AccentText}"/>
-                <TextBlock Text="Drop anywhere in this window, or click the button below."
-                           TextWrapping="Wrap" Foreground="{StaticResource SecondaryText}"/>
-                <Button Content="Install Mod" Width="90" Margin="0,10,0,10" Click="InstallZip_Click"/>
-                <Separator/>
-                <TextBlock Text="Manage" FontWeight="Bold" HorizontalAlignment="Center"
-                           Margin="0,10,0,10" Foreground="{StaticResource AccentText}"/>
-                <Button Content="Refresh List" Width="80" Margin="0,0,0,8" Click="RefreshMods_Click"/>
-                <Button Content="Uninstall Selected" Width="120" Click="Uninstall_Click"/>
-              </StackPanel>
+              <TextBlock Text="📁" FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0"/>
+              <TextBox x:Name="GamePathBox" Grid.Column="1" VerticalAlignment="Center"/>
+              <Button Grid.Column="3" Content="Browse" Style="{StaticResource SecondaryButton}" Click="Browse_Click"/>
             </Grid>
           </Grid>
         </Border>
 
-        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Left">
-          <TextBlock Text="{Binding AppVersion}" Foreground="{StaticResource SecondaryText}"
-                     VerticalAlignment="Bottom" Margin="0,0,0,-10"/>
-        </StackPanel>
+        <!-- Main Content Area -->
+        <Grid Grid.Row="2">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="280"/>
+            <ColumnDefinition Width="20"/>
+            <ColumnDefinition Width="*"/>
+          </Grid.ColumnDefinitions>
 
-        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right">
-          <Button Content="Launch Erenshor" Height="30" Width="120" Click="LaunchErenshor_Click"/>
-        </StackPanel>
+          <!-- Sidebar Actions -->
+          <Border Grid.Column="0" Background="{StaticResource SidebarBg}" CornerRadius="12" Padding="20" BorderThickness="1" BorderBrush="{StaticResource BorderColor}">
+            <StackPanel>
+              <!-- Install Section -->
+              <TextBlock Text="Install Mod" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
+              <TextBlock Text="Drop a .zip file anywhere in this window" 
+                         TextWrapping="Wrap" 
+                         Foreground="{StaticResource TextSecondary}"
+                         FontSize="12"
+                         Margin="0,8,0,16"/>
+              <Button Content="📦 Choose File" 
+                      Style="{StaticResource PrimaryButton}" 
+                      HorizontalAlignment="Stretch"
+                      Click="InstallZip_Click"/>
+
+              <!-- Divider -->
+              <Border Height="1" Background="{StaticResource BorderColor}" Margin="0,24,0,24"/>
+
+              <!-- Manage Section -->
+              <TextBlock Text="Manage" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" Margin="0,0,0,16"/>
+              <Button Content="Open Plugins" 
+                      Style="{StaticResource SecondaryButton}" 
+                      HorizontalAlignment="Stretch"
+                      Margin="0,0,0,8"
+                      Click="OpenPlugins_Click"/>
+              <Button Content="🔄 Refresh List" 
+                      Style="{StaticResource SecondaryButton}" 
+                      HorizontalAlignment="Stretch"
+                      Margin="0,0,0,8"
+                      Click="RefreshMods_Click"/>
+              <Button Content="🗑️ Uninstall Selected" 
+                      Style="{StaticResource SecondaryButton}" 
+                      HorizontalAlignment="Stretch"
+                      Click="Uninstall_Click"/>
+            </StackPanel>
+          </Border>
+
+          <!-- Mods List -->
+          <Border Grid.Column="2" Background="{StaticResource CardBg}" CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource BorderColor}">
+            <Grid Margin="20">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="8"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="16"/>
+                <RowDefinition Height="*"/>
+              </Grid.RowDefinitions>
+
+              <TextBlock Text="Installed Mods" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
+              
+              <TextBlock x:Name="StatusBlock" Grid.Row="2" Foreground="{StaticResource TextSecondary}" FontSize="12" TextWrapping="Wrap"/>
+
+              <ListBox x:Name="ModsList" Grid.Row="4"
+                       ItemsSource="{Binding Mods}"
+                       PreviewMouseRightButtonDown="ModsList_PreviewMouseRightButtonDown"
+                       ScrollViewer.VerticalScrollBarVisibility="Auto"
+                       ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                      </Grid.ColumnDefinitions>
+
+                      <CheckBox IsChecked="{Binding IsEnabled}"
+                                Checked="ModToggle_Checked"
+                                Unchecked="ModToggle_Unchecked"
+                                VerticalAlignment="Center"/>
+
+                      <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                        <TextBlock Text="{Binding DisplayName}" 
+                                   FontWeight="Medium"
+                                   FontSize="13"
+                                   Foreground="{StaticResource TextPrimary}"
+                                   ToolTip="{Binding Guid}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                          <TextBlock Text="{Binding StatusSuffix}" 
+                                     Foreground="{StaticResource TextMuted}"
+                                     FontSize="11"
+                                     Margin="0,0,8,0"/>
+                          <TextBlock Text="{Binding Version}" 
+                                     Foreground="{StaticResource TextMuted}"
+                                     FontSize="11"/>
+                        </StackPanel>
+                      </StackPanel>
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </Grid>
+          </Border>
+        </Grid>
+
+        <!-- Bottom Bar -->
+        <Grid Grid.Row="4">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          
+          <Button Grid.Column="1" 
+                  Content="🚀 Launch Erenshor" 
+                  Style="{StaticResource PrimaryButton}"
+                  Padding="24,12"
+                  FontSize="14"
+                  Click="LaunchErenshor_Click"/>
+        </Grid>
       </Grid>
     </Grid>
-  </Grid>
+  </Border>
 </Window>
