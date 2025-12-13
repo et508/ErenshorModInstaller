@@ -29,8 +29,8 @@
     <SolidColorBrush x:Key="CardBg" Color="#1A1D23"/>
     <SolidColorBrush x:Key="CardBgHover" Color="#20242C"/>
     <SolidColorBrush x:Key="SidebarBg" Color="#151820"/>
-    <SolidColorBrush x:Key="AccentPrimary" Color="#6366F1"/>
-    <SolidColorBrush x:Key="AccentHover" Color="#7C3AED"/>
+    <SolidColorBrush x:Key="AccentPrimary" Color="#0D2640"/>
+    <SolidColorBrush x:Key="AccentHover" Color="#008DFD"/>
     <SolidColorBrush x:Key="TextPrimary" Color="#F1F5F9"/>
     <SolidColorBrush x:Key="TextSecondary" Color="#94A3B8"/>
     <SolidColorBrush x:Key="TextMuted" Color="#64748B"/>
@@ -97,7 +97,7 @@
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
                 <Setter TargetName="border" Property="Background" Value="{StaticResource CardBgHover}"/>
-                <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource AccentPrimary}"/>
+                <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource AccentHover}"/>
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
                 <Setter TargetName="border" Property="Background" Value="#0F1014"/>
@@ -246,7 +246,7 @@
                 <Setter TargetName="checkBorder" Property="BorderBrush" Value="{StaticResource AccentPrimary}"/>
               </Trigger>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="checkBorder" Property="BorderBrush" Value="{StaticResource AccentPrimary}"/>
+                <Setter TargetName="checkBorder" Property="BorderBrush" Value="{StaticResource AccentHover}"/>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
