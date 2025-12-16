@@ -23,7 +23,7 @@ namespace ErenshorModInstaller.Wpf.Services
 
         public static string GetIndexDir(string gameRoot)
         {
-            var bep = Installer.GetBepInExDir(gameRoot);
+            var bep = PathHelper.GetBepInExDir(gameRoot);
             return Path.Combine(bep, "ErenshorModInstaller");
         }
 
@@ -71,7 +71,7 @@ namespace ErenshorModInstaller.Wpf.Services
 
         public static void RebuildFromExistingMods(string gameRoot)
         {
-            var plugins = Installer.GetPluginsDir(gameRoot);
+            var plugins = PathHelper.GetPluginsDir(gameRoot);
             if (!Directory.Exists(plugins)) return;
 
             var fresh = new Dictionary<string, StoredMod>(StringComparer.OrdinalIgnoreCase);

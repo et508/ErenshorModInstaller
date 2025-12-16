@@ -95,7 +95,7 @@ namespace ErenshorModInstaller.Wpf.Services
 
             try { File.Delete(tmpZip); } catch { /* ignore temp cleanup */ }
             
-            var bepDir    = Installer.GetBepInExDir(gameRoot);
+            var bepDir    = PathHelper.GetBepInExDir(gameRoot);
             var winHttp   = Path.Combine(gameRoot, "winhttp.dll");
             var doorstop  = Path.Combine(gameRoot, "doorstop_config.ini");
 

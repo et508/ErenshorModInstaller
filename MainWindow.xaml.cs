@@ -102,7 +102,7 @@ namespace ErenshorModInstaller.Wpf
                 return;
             }
 
-            var plugins = Installer.GetPluginsDir(root);
+            var plugins = PathHelper.GetPluginsDir(root);
             if (!Directory.Exists(plugins))
             {
                 Warn("BepInEx/plugins not found. Run Erenshor once after installing BepInEx.");
@@ -307,13 +307,13 @@ namespace ErenshorModInstaller.Wpf
             
             await GameSetupService.ValidateAndFixAsync(root, this);
             
-            var plugins = Installer.GetPluginsDir(root);
+            var plugins = PathHelper.GetPluginsDir(root);
             if (!Directory.Exists(plugins))
             {
                 Warn("Install blocked: run Erenshor once to create BepInEx\\plugins.");
                 return;
             }
-            var cfgPath = Path.Combine(Installer.GetBepInExDir(root), "config", "BepInEx.cfg");
+            var cfgPath = Path.Combine(PathHelper.GetBepInExDir(root), "config", "BepInEx.cfg");
             if (!File.Exists(cfgPath))
             {
                 Warn("Install blocked: run Erenshor once to generate BepInEx.cfg.");
@@ -351,7 +351,7 @@ namespace ErenshorModInstaller.Wpf
             var root = GamePathBox.Text;
             if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) { _isUpdatingList = false; return; }
 
-            var plugins = Installer.GetPluginsDir(root);
+            var plugins = PathHelper.GetPluginsDir(root);
             if (!Directory.Exists(plugins))
             {
                 Warn("BepInEx/plugins not found. Run Erenshor once after installing BepInEx.");

@@ -24,11 +24,11 @@ namespace ErenshorModInstaller.Wpf.Services
         public static List<ModItem> ListInstalledMods(string root)
         {
             var list = new List<ModItem>();
-            var plugins = Installer.GetPluginsDir(root);
+            var plugins = PathHelper.GetPluginsDir(root);
             if (!Directory.Exists(plugins)) return list;
             
             var dirs = Directory.GetDirectories(plugins)
-                                .Where(d => !IsHiddenOrDotFolder(d))
+                                .Where(d => !FileSystemHelper.IsHiddenOrDotFolder(d))
                                 .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase);
 
             foreach (var dir in dirs)
@@ -97,7 +97,7 @@ namespace ErenshorModInstaller.Wpf.Services
             {
                 var folder = Path.GetDirectoryName(path);
                 if (folder != null && Directory.Exists(folder))
-                    EnableAllDllsRecursively(folder);
+                    DllStateManager.EnableAllInFolder(folder);
                 item.IsEnabled = true;
                 return;
             }
@@ -125,7 +125,7 @@ namespace ErenshorModInstaller.Wpf.Services
             {
                 var folder = Path.GetDirectoryName(path);
                 if (folder != null && Directory.Exists(folder))
-                    DisableAllDllsRecursively(folder);
+                    DllStateManager.DisableAllInFolder(folder);
                 item.IsEnabled = false;
                 return;
             }
@@ -147,12 +147,12 @@ namespace ErenshorModInstaller.Wpf.Services
         {
             try
             {
-                var plugins = Installer.GetPluginsDir(root);
+                var plugins = PathHelper.GetPluginsDir(root);
                 var guid = item.Guid;
                 var name = item.DisplayName;
-                var storeRoot = VersionStoreForGuid(root, guid);
+                var storeRoot = PathHelper.GetVersionStoreForGuid(root, guid);
                 var versions = Directory.Exists(storeRoot)
-                    ? Directory.GetDirectories(storeRoot).Select(Path.GetFileName)!.ToList()
+                    ? Directory.GetDirectories(storeRoot).Select(d => Path.GetFileName(d)!).ToList()
                     : new List<string>();
                 
                 if (versions.Count == 0)
@@ -165,7 +165,7 @@ namespace ErenshorModInstaller.Wpf.Services
                         var target = Path.Combine(plugins, item.FolderName!);
                         if (!Directory.Exists(target)) { sink.Warn("Folder not found: " + item.FolderName); return false; }
 
-                        TryDeleteDirectory(target);
+                        FileSystemHelper.DeleteDirectory(target);
                         sink.Info($"Removed: ./BepInEx/plugins/{item.FolderName}");
                         return true;
                     }
@@ -190,7 +190,7 @@ namespace ErenshorModInstaller.Wpf.Services
                     if (item.IsFolder)
                     {
                         var target = Path.Combine(plugins, item.FolderName!);
-                        TryDeleteDirectory(target);
+                        FileSystemHelper.DeleteDirectory(target);
                     }
                     else
                     {
@@ -200,7 +200,7 @@ namespace ErenshorModInstaller.Wpf.Services
                         if (dllPath != null) File.Delete(dllPath);
                     }
                     
-                    TryDeleteDirectory(storeRoot);
+                    FileSystemHelper.DeleteDirectory(storeRoot);
                     sink.Info($"Removed all versions of {item.DisplayName}.");
                     return true;
                 }
@@ -226,9 +226,9 @@ namespace ErenshorModInstaller.Wpf.Services
                         if (item.IsFolder)
                         {
                             var activeFolder = Path.Combine(plugins, item.FolderName ?? "");
-                            TryDeleteDirectory(activeFolder);
-                            MoveDirectoryRobust(choice.StoredPath, activeFolder);
-                            EnableAllDllsRecursively(activeFolder);
+                            FileSystemHelper.DeleteDirectory(activeFolder);
+                            FileSystemHelper.MoveDirectory(choice.StoredPath, activeFolder);
+                            DllStateManager.EnableAllInFolder(activeFolder);
                         }
                         else
                         {
@@ -253,14 +253,14 @@ namespace ErenshorModInstaller.Wpf.Services
                         switchedToStored = true;
                         removeActive = false;
                         removeStored.Remove(keepAsActive);
-                        CleanupIfEmpty(Path.Combine(storeRoot, keepAsActive));
+                        FileSystemHelper.CleanupIfEmpty(Path.Combine(storeRoot, keepAsActive));
                     }
                 }
                 
                 foreach (var v in removeStored)
                 {
                     var vDir = Path.Combine(storeRoot, v);
-                    TryDeleteDirectory(vDir);
+                    FileSystemHelper.DeleteDirectory(vDir);
                 }
                 
                 if (removeActive && !switchedToStored)
@@ -268,7 +268,7 @@ namespace ErenshorModInstaller.Wpf.Services
                     if (item.IsFolder)
                     {
                         var target = Path.Combine(plugins, item.FolderName!);
-                        TryDeleteDirectory(target);
+                        FileSystemHelper.DeleteDirectory(target);
                     }
                     else
                     {
@@ -294,22 +294,22 @@ namespace ErenshorModInstaller.Wpf.Services
 
                     if (remaining.Count == 0)
                     {
-                        TryDeleteDirectory(storeRoot);
+                        FileSystemHelper.DeleteDirectory(storeRoot);
                     }
                     else if (keptActiveVersion != null &&
                              remaining.Count == 1 &&
                              string.Equals(remaining[0], keptActiveVersion, StringComparison.OrdinalIgnoreCase))
                     {
                         var onlyDir = Path.Combine(storeRoot, remaining[0]!);
-                        TryDeleteDirectory(onlyDir);
-                        CleanupIfEmpty(storeRoot);
+                        FileSystemHelper.DeleteDirectory(onlyDir);
+                        FileSystemHelper.CleanupIfEmpty(storeRoot);
                     }
                 }
 
 
 
-                TryHide(Path.Combine(plugins, ".versions"));
-                TryHide(storeRoot);
+                FileSystemHelper.HideDirectory(Path.Combine(plugins, ".versions"));
+                FileSystemHelper.HideDirectory(storeRoot);
 
                 sink.Info("Uninstall operation completed.");
                 return true;
@@ -327,7 +327,7 @@ namespace ErenshorModInstaller.Wpf.Services
             try
             {
                 VersionScanner.ModVersionInfo? incoming = null;
-                bool isArchive = IsArchive(path);
+                bool isArchive = FileSystemHelper.IsArchive(path);
                 if (File.Exists(path))
                 {
                     if (path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
@@ -345,7 +345,7 @@ namespace ErenshorModInstaller.Wpf.Services
                     var installed = FindInstalledByGuid(root, incoming.Guid);
                     if (installed != null)
                     {
-                        var cmp = CompareSemVerSafe(incoming.Version, installed.Version);
+                        var cmp = VersionComparer.Compare(incoming.Version, installed.Version);
                         if (cmp < 0)
                         {
                             var res = Prompts.ShowDowngrade(Application.Current?.MainWindow!,
@@ -389,7 +389,7 @@ namespace ErenshorModInstaller.Wpf.Services
                 }
                 else
                 {
-                    var plugins = Installer.GetPluginsDir(root);
+                    var plugins = PathHelper.GetPluginsDir(root);
                     if (!string.Equals(result.TargetDir, plugins, StringComparison.OrdinalIgnoreCase)
                         && Directory.Exists(result.TargetDir))
                     {
@@ -408,7 +408,7 @@ namespace ErenshorModInstaller.Wpf.Services
                     ModIndex.UpsertFromScan(root, scan);
                 }
 
-                sink.Info($"Installed into: {RelativeToGame(root, result.TargetDir)}");
+                sink.Info($"Installed into: {PathHelper.RelativeToGame(root, result.TargetDir)}");
                 if (!string.IsNullOrEmpty(result.Warning)) sink.Warn(result.Warning);
                 return true;
             }
@@ -426,7 +426,7 @@ namespace ErenshorModInstaller.Wpf.Services
             {
                 if (item == null || string.IsNullOrWhiteSpace(item.Guid)) return result;
 
-                var storeRoot = VersionStoreForGuid(root, item.Guid);
+                var storeRoot = PathHelper.GetVersionStoreForGuid(root, item.Guid);
                 if (!Directory.Exists(storeRoot)) return result;
 
                 foreach (var versionDir in Directory.GetDirectories(storeRoot))
@@ -491,19 +491,19 @@ namespace ErenshorModInstaller.Wpf.Services
             {
                 StashCurrentActive_Move(root, item, sink);
 
-                var plugins = Installer.GetPluginsDir(root);
+                var plugins = PathHelper.GetPluginsDir(root);
 
                 if (item.IsFolder)
                 {
                     var activeFolder = Path.Combine(plugins, item.FolderName ?? "");
-                    TryDeleteDirectory(activeFolder);
+                    FileSystemHelper.DeleteDirectory(activeFolder);
 
                     if (!Directory.Exists(choice.StoredPath))
                         throw new InvalidOperationException("Stored version payload not found: " + choice.StoredPath);
                     
-                    MoveDirectoryRobust(choice.StoredPath, activeFolder);
+                    FileSystemHelper.MoveDirectory(choice.StoredPath, activeFolder);
                     
-                    EnableAllDllsRecursively(activeFolder);
+                    DllStateManager.EnableAllInFolder(activeFolder);
 
                     sink.Info($"Switched {item.DisplayName} to v{choice.Version}.");
                 }
@@ -532,8 +532,8 @@ namespace ErenshorModInstaller.Wpf.Services
                     sink.Info($"Switched {item.DisplayName} to v{choice.Version}.");
                 }
                 
-                TryHide(Path.Combine(plugins, ".versions"));
-                TryHide(VersionStoreForGuid(root, item.Guid));
+                FileSystemHelper.HideDirectory(Path.Combine(plugins, ".versions"));
+                FileSystemHelper.HideDirectory(PathHelper.GetVersionStoreForGuid(root, item.Guid));
 
                 return true;
             }
@@ -546,23 +546,9 @@ namespace ErenshorModInstaller.Wpf.Services
 
       
 
-        private static bool IsHiddenOrDotFolder(string path)
-        {
-            try
-            {
-                var name = Path.GetFileName(path);
-                if (!string.IsNullOrEmpty(name) && name.StartsWith(".", StringComparison.Ordinal)) return true;
 
-                var attr = File.GetAttributes(path);
-                return (attr & FileAttributes.Hidden) != 0;
-            }
-            catch { return false; }
-        }
+        private static string PluginsDir(string root) => PathHelper.GetPluginsDir(root);
 
-        private static string PluginsDir(string root) => Installer.GetPluginsDir(root);
-
-        private static string VersionStoreForGuid(string root, string guid)
-            => Path.Combine(PluginsDir(root), ".versions", SanitizeGuid(guid));
 
         private static string SanitizeGuid(string guid)
         {
@@ -571,31 +557,18 @@ namespace ErenshorModInstaller.Wpf.Services
             return cleaned;
         }
 
-        private static void TryHide(string path)
-        {
-            try
-            {
-                if (Directory.Exists(path))
-                {
-                    var a = File.GetAttributes(path);
-                    if ((a & FileAttributes.Hidden) == 0)
-                        File.SetAttributes(path, a | FileAttributes.Hidden);
-                }
-            }
-            catch { }
-        }
         
         private static void StashCurrentActive_Move(string root, ModItem installed, IStatusSink? sink)
         {
             try
             {
-                var storeRoot = VersionStoreForGuid(root, installed.Guid);
+                var storeRoot = PathHelper.GetVersionStoreForGuid(root, installed.Guid);
                 var version = string.IsNullOrWhiteSpace(installed.Version) ? "0.0.0" : installed.Version;
                 var dest = Path.Combine(storeRoot, version);
 
                 Directory.CreateDirectory(dest);
-                TryHide(Path.Combine(PluginsDir(root), ".versions"));
-                TryHide(storeRoot);
+                FileSystemHelper.HideDirectory(Path.Combine(PluginsDir(root), ".versions"));
+                FileSystemHelper.HideDirectory(storeRoot);
 
                 if (installed.IsFolder)
                 {
@@ -604,11 +577,11 @@ namespace ErenshorModInstaller.Wpf.Services
                     {
                         var destFolder = Path.Combine(dest, installed.FolderName ?? "");
                       
-                        TryDeleteDirectory(destFolder);
-                        MoveDirectoryRobust(activeFolder, destFolder);
+                        FileSystemHelper.DeleteDirectory(destFolder);
+                        FileSystemHelper.MoveDirectory(activeFolder, destFolder);
 
                        
-                        DisableAllDllsRecursively(destFolder);
+                        DllStateManager.DisableAllInFolder(destFolder);
                     }
                 }
                 else
@@ -639,7 +612,7 @@ namespace ErenshorModInstaller.Wpf.Services
                     }
                 }
 
-                TryHide(dest);
+                FileSystemHelper.HideDirectory(dest);
             }
             catch (Exception ex)
             {
@@ -651,18 +624,18 @@ namespace ErenshorModInstaller.Wpf.Services
         {
             try
             {
-                var storeRoot = VersionStoreForGuid(root, installed.Guid);
+                var storeRoot = PathHelper.GetVersionStoreForGuid(root, installed.Guid);
                 var destVersion = Path.Combine(storeRoot, incoming.Version);
                 Directory.CreateDirectory(destVersion);
-                TryHide(Path.Combine(PluginsDir(root), ".versions"));
-                TryHide(storeRoot);
+                FileSystemHelper.HideDirectory(Path.Combine(PluginsDir(root), ".versions"));
+                FileSystemHelper.HideDirectory(storeRoot);
 
                 if (Directory.Exists(incomingPath))
                 {
                     var destFolder = Path.Combine(destVersion, installed.FolderName ?? Path.GetFileName(incomingPath));
-                    TryDeleteDirectory(destFolder);
-                    MoveDirectoryRobust(incomingPath, destFolder);
-                    DisableAllDllsRecursively(destFolder);
+                    FileSystemHelper.DeleteDirectory(destFolder);
+                    FileSystemHelper.MoveDirectory(incomingPath, destFolder);
+                    DllStateManager.DisableAllInFolder(destFolder);
                 }
                 else if (incomingPath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
                 {
@@ -671,7 +644,7 @@ namespace ErenshorModInstaller.Wpf.Services
                     if (File.Exists(destDisabled)) File.Delete(destDisabled);
                     File.Move(incomingPath, destDisabled);
                 }
-                else if (IsArchive(incomingPath))
+                else if (FileSystemHelper.IsArchive(incomingPath))
                 {
                     var tmpRoot = Path.Combine(Path.GetTempPath(), "Erenshor_Alt_" + Guid.NewGuid().ToString("N"));
                     Directory.CreateDirectory(tmpRoot);
@@ -687,9 +660,9 @@ namespace ErenshorModInstaller.Wpf.Services
                         {
                             var name = Path.GetFileName(entry);
                             var target = Path.Combine(destVersion, name!);
-                            TryDeleteDirectory(target);
+                            FileSystemHelper.DeleteDirectory(target);
                             if (Directory.Exists(entry))
-                                MoveDirectoryRobust(entry, target);
+                                FileSystemHelper.MoveDirectory(entry, target);
                             else
                             {
                                 if (File.Exists(target)) File.Delete(target);
@@ -697,7 +670,7 @@ namespace ErenshorModInstaller.Wpf.Services
                             }
                         }
 
-                        DisableAllDllsRecursively(destVersion);
+                        DllStateManager.DisableAllInFolder(destVersion);
                     }
                     finally
                     {
@@ -705,7 +678,7 @@ namespace ErenshorModInstaller.Wpf.Services
                     }
                 }
 
-                TryHide(destVersion);
+                FileSystemHelper.HideDirectory(destVersion);
             }
             catch (Exception ex)
             {
@@ -718,136 +691,13 @@ namespace ErenshorModInstaller.Wpf.Services
             return ListInstalledMods(root).FirstOrDefault(m => string.Equals(m.Guid, guid, StringComparison.OrdinalIgnoreCase));
         }
 
-        private static int CompareSemVerSafe(string a, string b)
-        {
-            string norm(string s) => string.IsNullOrWhiteSpace(s) ? "0.0.0" : s.Trim();
 
-            var asv = norm(a).Split(new[] { '.', '-', '+' }, StringSplitOptions.RemoveEmptyEntries);
-            var bsv = norm(b).Split(new[] { '.', '-', '+' }, StringSplitOptions.RemoveEmptyEntries);
 
-            int n = Math.Max(asv.Length, bsv.Length);
-            for (int i = 0; i < n; i++)
-            {
-                var pa = i < asv.Length ? asv[i] : "0";
-                var pb = i < bsv.Length ? bsv[i] : "0";
-
-                if (int.TryParse(pa, out var ia) && int.TryParse(pb, out var ib))
-                {
-                    if (ia != ib) return ia.CompareTo(ib);
-                    continue;
-                }
-
-                int cmp = string.Compare(pa, pb, StringComparison.OrdinalIgnoreCase);
-                if (cmp != 0) return cmp;
-            }
-            return 0;
-        }
-
-        private static string RelativeToGame(string root, string fullPath)
-            => string.IsNullOrWhiteSpace(root) ? fullPath : fullPath.Replace(root, ".").Trim();
-
-        private static bool IsArchive(string path)
-        {
-            var ext = Path.GetExtension(path)?.ToLowerInvariant();
-            return ext == ".zip" || ext == ".7z" || ext == ".rar";
-        }
         
-        private static void MoveDirectoryRobust(string sourceDir, string destDir)
-        {
-            if (!Directory.Exists(sourceDir))
-                throw new DirectoryNotFoundException("Source folder not found: " + sourceDir);
-            
-            TryDeleteDirectory(destDir);
-            Directory.CreateDirectory(Path.GetDirectoryName(destDir)!);
 
-            try
-            {
-                Directory.Move(sourceDir, destDir);
-            }
-            catch
-            {
-                CopyDirectory(sourceDir, destDir);
-                TryDeleteDirectory(sourceDir);
-            }
-        }
 
-        private static void CopyDirectory(string sourceDir, string destDir)
-        {
-            Directory.CreateDirectory(destDir);
-
-            foreach (var file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
-            {
-                var rel = Path.GetRelativePath(sourceDir, file);
-                var target = Path.Combine(destDir, rel);
-                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                File.Copy(file, target, overwrite: true);
-            }
-        }
-
-        private static void TryDeleteDirectory(string path)
-        {
-            if (!Directory.Exists(path)) return;
-
-            foreach (var f in Directory.GetFiles(path, "*", SearchOption.AllDirectories))
-            {
-                try
-                {
-                    var attr = File.GetAttributes(f);
-                    if ((attr & FileAttributes.ReadOnly) != 0 || (attr & FileAttributes.Hidden) != 0)
-                    {
-                        File.SetAttributes(f, attr & ~FileAttributes.ReadOnly & ~FileAttributes.Hidden);
-                    }
-                }
-                catch { }
-            }
-
-            try { Directory.Delete(path, recursive: true); }
-            catch
-            {
-                try
-                {
-                    var tmp = path + ".old_" + DateTime.UtcNow.Ticks;
-                    Directory.Move(path, tmp);
-                }
-                catch { }
-            }
-        }
         
-        private static void DisableAllDllsRecursively(string rootDir)
-        {
-            try
-            {
-                foreach (var dll in Directory.GetFiles(rootDir, "*.dll", SearchOption.AllDirectories))
-                {
-                    var disabled = dll + ".disabled";
-                    try
-                    {
-                        if (File.Exists(disabled)) { File.Delete(dll); continue; }
-                        File.Move(dll, disabled);
-                    }
-                    catch { /* ignore per-file errors */ }
-                }
-            }
-            catch { }
-        }
         
-        private static void EnableAllDllsRecursively(string rootDir)
-        {
-            try
-            {
-                foreach (var disabled in Directory.GetFiles(rootDir, "*.dll.disabled", SearchOption.AllDirectories))
-                {
-                    var enabled = disabled[..^(".disabled".Length)];
-                    try
-                    {
-                        if (File.Exists(enabled)) File.Delete(enabled);
-                        File.Move(disabled, enabled);
-                    }
-                    catch { /* ignore per-file errors */ }
-                }
-            }
-            catch { }
-        }
 
         private static AlternateVersion? FindStoredChoice(string root, ModItem item, string version)
         {
@@ -855,15 +705,5 @@ namespace ErenshorModInstaller.Wpf.Services
                 string.Equals(a.Version, version, StringComparison.OrdinalIgnoreCase));
         }
 
-        private static void CleanupIfEmpty(string dir)
-        {
-            try
-            {
-                if (!Directory.Exists(dir)) return;
-                if (!Directory.EnumerateFileSystemEntries(dir).Any())
-                    Directory.Delete(dir, false);
-            }
-            catch { }
-        }
     }
 }

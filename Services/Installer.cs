@@ -31,7 +31,7 @@ namespace ErenshorModInstaller.Wpf.Services
             if (string.IsNullOrWhiteSpace(gameRoot) || !Directory.Exists(gameRoot))
                 throw new InvalidOperationException("Game folder is not set or does not exist.");
 
-            var bepDir = GetBepInExDir(gameRoot);
+            var bepDir = PathHelper.GetBepInExDir(gameRoot);
             if (!Directory.Exists(bepDir))
                 throw new InvalidOperationException("BepInEx folder not found in the game directory.");
 
@@ -71,13 +71,11 @@ namespace ErenshorModInstaller.Wpf.Services
             return null;
         }
 
-        public static string GetBepInExDir(string gameRoot) => Path.Combine(gameRoot, "BepInEx");
 
-        public static string GetPluginsDir(string gameRoot) => Path.Combine(GetBepInExDir(gameRoot), "plugins");
         
         public static BepInExConfigStatus GetBepInExConfigStatus(string gameRoot, out string cfgPath)
         {
-            cfgPath = Path.Combine(GetBepInExDir(gameRoot), "config", "BepInEx.cfg");
+            cfgPath = Path.Combine(PathHelper.GetBepInExDir(gameRoot), "config", "BepInEx.cfg");
             if (!File.Exists(cfgPath)) return BepInExConfigStatus.MissingConfig;
             
             var (exists, isTrue) = TryReadHideManagerGameObject(cfgPath);
@@ -88,7 +86,7 @@ namespace ErenshorModInstaller.Wpf.Services
         
         public static void EnsureHideManagerGameObjectTrue(string gameRoot)
         {
-            var cfgPath = Path.Combine(GetBepInExDir(gameRoot), "config", "BepInEx.cfg");
+            var cfgPath = Path.Combine(PathHelper.GetBepInExDir(gameRoot), "config", "BepInEx.cfg");
             if (!File.Exists(cfgPath))
                 throw new FileNotFoundException("BepInEx.cfg not found. Launch the game once to generate configs.", cfgPath);
 
@@ -110,11 +108,11 @@ namespace ErenshorModInstaller.Wpf.Services
             if (string.IsNullOrWhiteSpace(sourceDir) || !Directory.Exists(sourceDir))
                 throw new DirectoryNotFoundException("Source folder not found: " + sourceDir);
 
-            var plugins = GetPluginsDir(gameRoot);
+            var plugins = PathHelper.GetPluginsDir(gameRoot);
             var folderName = Path.GetFileName(sourceDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))!;
             var dest = Path.Combine(plugins, folderName);
 
-            CopyDirectory(sourceDir, dest);
+            FileSystemHelper.CopyDirectory(sourceDir, dest);
 
             var primaryDll = FindPrimaryPluginDll(dest);
             return new InstallResult
@@ -129,7 +127,7 @@ namespace ErenshorModInstaller.Wpf.Services
             if (string.IsNullOrWhiteSpace(dllPath) || !File.Exists(dllPath))
                 throw new FileNotFoundException("DLL not found.", dllPath);
 
-            var plugins = GetPluginsDir(gameRoot);
+            var plugins = PathHelper.GetPluginsDir(gameRoot);
             Directory.CreateDirectory(plugins);
 
             var fileName = Path.GetFileName(dllPath);
@@ -163,36 +161,6 @@ namespace ErenshorModInstaller.Wpf.Services
             throw new InvalidOperationException("Unsupported file type for install: " + Path.GetFileName(path));
         }
         
-        public static void TryDeleteDirectory(string dir)
-        {
-            if (!Directory.Exists(dir)) return;
-
-            foreach (var file in Directory.GetFiles(dir, "*", SearchOption.TopDirectoryOnly))
-            {
-                try
-                {
-                    var fi = new FileInfo(file) { IsReadOnly = false };
-                    fi.Attributes &= ~FileAttributes.ReadOnly;
-                    File.Delete(file);
-                }
-                catch { /* ignore */ }
-            }
-
-            foreach (var sub in Directory.GetDirectories(dir, "*", SearchOption.TopDirectoryOnly))
-            {
-                TryDeleteDirectory(sub);
-            }
-
-            try
-            {
-                var di = new DirectoryInfo(dir) { Attributes = FileAttributes.Normal };
-                Directory.Delete(dir, recursive: false);
-            }
-            catch
-            {
-                try { Directory.Delete(dir, recursive: true); } catch { }
-            }
-        }
         
         public static bool TryScanArchiveForPlugin(string archivePath, out VersionScanner.ModVersionInfo? info)
         {
@@ -259,7 +227,7 @@ namespace ErenshorModInstaller.Wpf.Services
             if (string.IsNullOrWhiteSpace(archivePath) || !File.Exists(archivePath))
                 throw new FileNotFoundException("Archive not found.", archivePath);
 
-            var plugins = GetPluginsDir(gameRoot);
+            var plugins = PathHelper.GetPluginsDir(gameRoot);
             Directory.CreateDirectory(plugins);
             
             var extractedFiles = new List<string>();
@@ -357,25 +325,6 @@ namespace ErenshorModInstaller.Wpf.Services
             return null;
         }
 
-        private static void CopyDirectory(string sourceDir, string destDir)
-        {
-            Directory.CreateDirectory(destDir);
-
-            foreach (var file in Directory.GetFiles(sourceDir, "*", SearchOption.TopDirectoryOnly))
-            {
-                var name = Path.GetFileName(file);
-                var destFile = Path.Combine(destDir, name);
-                var fi = new FileInfo(file) { IsReadOnly = false };
-                File.Copy(file, destFile, overwrite: true);
-            }
-
-            foreach (var sub in Directory.GetDirectories(sourceDir, "*", SearchOption.TopDirectoryOnly))
-            {
-                var name = Path.GetFileName(sub);
-                var destSub = Path.Combine(destDir, name);
-                CopyDirectory(sub, destSub);
-            }
-        }
 
         private static (bool exists, bool isTrue) TryReadHideManagerGameObject(string cfgPath)
         {

@@ -56,7 +56,7 @@ namespace ErenshorModInstaller.Wpf.Services
                 }
             }
             
-            var plugins = Installer.GetPluginsDir(gameRoot);
+            var plugins = PathHelper.GetPluginsDir(gameRoot);
             if (!Directory.Exists(plugins))
             {
                 status?.Warn("Run Erenshor once to complete BepInEx setup.");
@@ -157,16 +157,16 @@ namespace ErenshorModInstaller.Wpf.Services
 
         private static bool IsBepInExSetupComplete(string root)
         {
-            var plugins = Installer.GetPluginsDir(root);
-            var cfg = Path.Combine(Installer.GetBepInExDir(root), "config", "BepInEx.cfg");
+            var plugins = PathHelper.GetPluginsDir(root);
+            var cfg = Path.Combine(PathHelper.GetBepInExDir(root), "config", "BepInEx.cfg");
             return Directory.Exists(plugins) && File.Exists(cfg);
         }
 
         private static async Task<bool> WaitForBepInExSetupAsync(string root, TimeSpan timeout, IStatusSink? status, CancellationToken ct)
         {
-            var bepRoot = Installer.GetBepInExDir(root);
+            var bepRoot = PathHelper.GetBepInExDir(root);
             var cfgPath = Path.Combine(bepRoot, "config", "BepInEx.cfg");
-            var plugins = Installer.GetPluginsDir(root);
+            var plugins = PathHelper.GetPluginsDir(root);
             var logPath = Path.Combine(bepRoot, "LogOutput.log");
 
             var started = DateTime.UtcNow;
@@ -237,8 +237,8 @@ namespace ErenshorModInstaller.Wpf.Services
             try
             {
                 var ver = Installer.ValidateBepInExOrThrow(root);
-                var plugins = Installer.GetPluginsDir(root);
-                var cfg = Path.Combine(Installer.GetBepInExDir(root), "config", "BepInEx.cfg");
+                var plugins = PathHelper.GetPluginsDir(root);
+                var cfg = Path.Combine(PathHelper.GetBepInExDir(root), "config", "BepInEx.cfg");
 
                 if (Directory.Exists(plugins) && File.Exists(cfg))
                 {
