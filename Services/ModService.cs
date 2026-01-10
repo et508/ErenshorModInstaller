@@ -405,7 +405,35 @@ namespace ErenshorModInstaller.Wpf.Services
 
                 if (scan != null && !string.IsNullOrWhiteSpace(scan.Guid))
                 {
-                    ModIndex.UpsertFromScan(root, scan);
+                    var installedFiles = new List<string>();
+    
+                    // Determine what files were installed
+                    if (!string.IsNullOrWhiteSpace(result.PrimaryDll) && File.Exists(result.PrimaryDll))
+                    {
+                        installedFiles.Add(PathHelper.RelativeToGame(root, result.PrimaryDll));
+                    }
+    
+                    // If it's a folder installation, add all files in the folder
+                    if (Directory.Exists(result.TargetDir))
+                    {
+                        var plugins = PathHelper.GetPluginsDir(root);
+                        if (!string.Equals(result.TargetDir, plugins, StringComparison.OrdinalIgnoreCase))
+                        {
+                            foreach (var file in Directory.GetFiles(result.TargetDir, "*.*", SearchOption.AllDirectories))
+                            {
+                                installedFiles.Add(PathHelper.RelativeToGame(root, file));
+                            }
+                        }
+                    }
+    
+                    ModIndex.UpsertFromScan(
+                        root, 
+                        scan.Guid, 
+                        scan.Name ?? scan.Guid, 
+                        scan.Version ?? "0.0.0", 
+                        installedFiles,
+                        null // homepageUrl - could extract from manifest if available
+                    );
                 }
 
                 sink.Info($"Installed into: {PathHelper.RelativeToGame(root, result.TargetDir)}");

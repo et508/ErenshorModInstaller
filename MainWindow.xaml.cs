@@ -21,13 +21,19 @@ namespace ErenshorModInstaller.Wpf
         public string AppVersion { get; } 
         public ObservableCollection<ModItem> Mods { get; } = new();
         private bool _isUpdatingList;
+        private bool _isInitializing = true;
 
         public MainWindow()
         {
             InitializeComponent();
             AppVersion = $"v{UpdateChecker.GetCurrentVersion()}";
             DataContext = this;
-            TryAutoDetect();
+            
+            // Initialize AppData folder and load settings
+            AppDataManager.EnsureAppDataFolder();
+            InitializeGamePaths();
+            
+            _isInitializing = false;
             
             _ = Task.Run(async () =>
             {
@@ -48,57 +54,382 @@ namespace ErenshorModInstaller.Wpf
             });
         }
 
-        private async void TryAutoDetect()
+        /// <summary>
+        /// Initializes game paths on startup - auto-detects on first run
+        /// </summary>
+        private void InitializeGamePaths()
+        {
+            var settings = AppDataManager.LoadSettings();
+
+            // First run - no paths saved yet, try auto-detect
+            if (settings.GameInstallPaths.Count == 0)
+            {
+                var detectedPath = TryAutoDetectErenshor();
+                if (!string.IsNullOrEmpty(detectedPath))
+                {
+                    // Save with "Steam" label
+                    AppDataManager.AddGameInstallPath(detectedPath, "Steam");
+                    Info("Auto-detected Erenshor via Steam.");
+                }
+                else
+                {
+                    Warn("Could not auto-detect Erenshor. Select your game folder from the dropdown.");
+                }
+            }
+
+            // Load all paths into ComboBox
+            LoadGamePathsIntoComboBox();
+            
+            // Auto-validate and refresh mods for the selected path
+            if (!string.IsNullOrEmpty(GetCurrentGamePath()))
+            {
+                _ = Task.Run(async () =>
+                {
+                    await Dispatcher.InvokeAsync(async () =>
+                    {
+                        await AutoValidateAsync();
+                        RefreshMods();
+                    });
+                });
+            }
+        }
+
+        /// <summary>
+        /// Attempts to auto-detect Erenshor installation via Steam
+        /// </summary>
+        private string? TryAutoDetectErenshor()
         {
             try
             {
+                // Use existing SteamLocator service
                 var erRoot = SteamLocator.TryFindErenshorRoot();
                 if (!string.IsNullOrEmpty(erRoot))
                 {
-                    GamePathBox.Text = erRoot;
-                    Info("Detected Erenshor via Steam.");
+                    return erRoot;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Auto-detect failed: {ex.Message}");
+            }
+            
+            return null;
+        }
 
+        /// <summary>
+        /// Loads all game install paths into the ComboBox with their labels
+        /// </summary>
+        private void LoadGamePathsIntoComboBox()
+        {
+            _isInitializing = true;
+            GamePathComboBox.Items.Clear();
+
+            var entries = AppDataManager.GetGameInstallPathEntries();
+            var currentPath = AppDataManager.GetGameInstallPath();
+
+            if (entries.Count == 0)
+            {
+                // No paths saved - add browse option
+                GamePathComboBox.Items.Add(new ComboBoxPathItem 
+                { 
+                    Label = "📁 Browse for game folder...",
+                    Path = ""
+                });
+                GamePathComboBox.SelectedIndex = 0;
+                _isInitializing = false;
+                return;
+            }
+
+            // Add all saved paths with labels
+            foreach (var entry in entries)
+            {
+                var item = new ComboBoxPathItem
+                {
+                    Label = entry.Label,
+                    Path = entry.Path
+                };
+                GamePathComboBox.Items.Add(item);
+
+                // Select the current primary path
+                if (string.Equals(entry.Path, currentPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    GamePathComboBox.SelectedItem = item;
+                }
+            }
+
+            // Add separator and "Add New Path..." option at the end
+            GamePathComboBox.Items.Add(new ComboBoxPathItem 
+            { 
+                Label = "──────────────",
+                Path = "SEPARATOR",
+                IsEnabled = false
+            });
+            
+            GamePathComboBox.Items.Add(new ComboBoxPathItem 
+            { 
+                Label = "➕ Add New Path...",
+                Path = "ADD_NEW"
+            });
+
+            // If nothing selected, select first item
+            if (GamePathComboBox.SelectedItem == null && entries.Count > 0)
+            {
+                GamePathComboBox.SelectedIndex = 0;
+            }
+            
+            _isInitializing = false;
+        }
+
+        /// <summary>
+        /// Handles game path ComboBox selection changes
+        /// </summary>
+        private async void GamePathComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_isInitializing) return;
+            
+            if (GamePathComboBox.SelectedItem is ComboBoxPathItem item)
+            {
+                // Handle special items
+                if (item.Path == "ADD_NEW")
+                {
+                    BrowseForGamePath();
+                    return;
+                }
+                
+                if (item.Path == "SEPARATOR")
+                {
+                    // Reselect previous item
+                    if (e.RemovedItems.Count > 0)
+                    {
+                        GamePathComboBox.SelectedItem = e.RemovedItems[0];
+                    }
+                    return;
+                }
+
+                // Handle empty path (browse prompt)
+                if (string.IsNullOrEmpty(item.Path))
+                {
+                    BrowseForGamePath();
+                    return;
+                }
+
+                // Valid path selected
+                if (Directory.Exists(item.Path))
+                {
+                    AppDataManager.SaveGameInstallPath(item.Path, item.Label);
+                    Info($"Using: {item.Label}");
                     await AutoValidateAsync();
                     RefreshMods();
                 }
                 else
                 {
-                    Warn("Could not auto-detect Erenshor. Browse to your game folder.");
+                    Warn($"Path no longer exists: {item.Path}");
                 }
             }
-            catch (Exception ex) { Error("Auto-detect failed: " + ex.Message); }
+        }
+
+        /// <summary>
+        /// Opens a folder browser to select a new game installation path
+        /// </summary>
+        private void BrowseForGamePath()
+        {
+            var dialog = new OpenFileDialog
+            {
+                Title = "Select Erenshor.exe",
+                Filter = "Erenshor Executable|Erenshor.exe",
+                CheckFileExists = true
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                var exePath = dialog.FileName;
+                var gamePath = Path.GetDirectoryName(exePath);
+
+                if (!string.IsNullOrEmpty(gamePath) && IsValidErenshorInstall(gamePath))
+                {
+                    // Check if path already exists
+                    var entries = AppDataManager.GetGameInstallPathEntries();
+                    var existingEntry = entries.FirstOrDefault(e => 
+                        string.Equals(e.Path, gamePath, StringComparison.OrdinalIgnoreCase));
+
+                    if (existingEntry != null)
+                    {
+                        // Path already exists, just select it
+                        foreach (var comboItem in GamePathComboBox.Items)
+                        {
+                            if (comboItem is ComboBoxPathItem pathItem && 
+                                string.Equals(pathItem.Path, gamePath, StringComparison.OrdinalIgnoreCase))
+                            {
+                                GamePathComboBox.SelectedItem = comboItem;
+                                break;
+                            }
+                        }
+                        Info("Path already added.");
+                        return;
+                    }
+
+                    // Prompt for label
+                    var label = PromptForPathLabel();
+                    if (string.IsNullOrEmpty(label))
+                        label = "Custom";
+
+                    // Add the new path
+                    AppDataManager.AddGameInstallPath(gamePath, label);
+                    AppDataManager.SaveGameInstallPath(gamePath, label);
+
+                    // Reload the ComboBox
+                    LoadGamePathsIntoComboBox();
+                    
+                    // Select the newly added path
+                    foreach (var comboItem in GamePathComboBox.Items)
+                    {
+                        if (comboItem is ComboBoxPathItem pathItem && 
+                            string.Equals(pathItem.Path, gamePath, StringComparison.OrdinalIgnoreCase))
+                        {
+                            GamePathComboBox.SelectedItem = comboItem;
+                            break;
+                        }
+                    }
+
+                    Info($"Added: {label}");
+                }
+                else
+                {
+                    MessageBox.Show("Invalid Erenshor installation folder.", "Invalid Path", 
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    
+                    // Reselect previous item
+                    LoadGamePathsIntoComboBox();
+                }
+            }
+            else
+            {
+                // User cancelled - reselect previous item
+                LoadGamePathsIntoComboBox();
+            }
+        }
+
+        /// <summary>
+        /// Validates if a path contains a valid Erenshor installation
+        /// </summary>
+        private bool IsValidErenshorInstall(string path)
+        {
+            if (string.IsNullOrEmpty(path) || !Directory.Exists(path))
+                return false;
+
+            // Check for Erenshor.exe
+            var exePath = Path.Combine(path, "Erenshor.exe");
+            if (!File.Exists(exePath))
+                return false;
+
+            // Check for Erenshor_Data folder
+            var dataFolder = Path.Combine(path, "Erenshor_Data");
+            if (!Directory.Exists(dataFolder))
+                return false;
+
+            return true;
+        }
+
+        /// <summary>
+        /// Prompts the user to enter a label for a game path
+        /// </summary>
+        private string PromptForPathLabel()
+        {
+            // Simple input dialog
+            var dialog = new InputDialog("Enter a label for this installation:", "Label Installation", "Custom");
+            if (dialog.ShowDialog() == true)
+            {
+                return dialog.ResponseText?.Trim() ?? "Custom";
+            }
+            
+            return "Custom";
+        }
+
+        /// <summary>
+        /// Gets the current game path from the ComboBox
+        /// </summary>
+        private string GetCurrentGamePath()
+        {
+            if (GamePathComboBox.SelectedItem is ComboBoxPathItem item && 
+                !string.IsNullOrEmpty(item.Path) && 
+                item.Path != "ADD_NEW" && 
+                item.Path != "SEPARATOR" &&
+                Directory.Exists(item.Path))
+            {
+                return item.Path;
+            }
+            return string.Empty;
         }
 
         private async Task AutoValidateAsync()
         {
-            var root = GamePathBox.Text;
-            await GameSetupService.ValidateAndFixAsync(root, this);
+            var root = GetCurrentGamePath();
+            if (!string.IsNullOrEmpty(root))
+            {
+                await GameSetupService.ValidateAndFixAsync(root, this);
+            }
         }
 
-        private async void Browse_Click(object sender, RoutedEventArgs e)
+        private void EnableAllMods_Click(object sender, RoutedEventArgs e)
         {
-            var dlg = new OpenFileDialog
+            var root = GetCurrentGamePath();
+            if (string.IsNullOrWhiteSpace(root))
             {
-                Title = "Select Erenshor.exe",
-                Filter = "Erenshor executable|Erenshor.exe",
-                CheckFileExists = true
-            };
-            if (dlg.ShowDialog() == true)
+                Warn("Select game folder first.");
+                return;
+            }
+
+            try
             {
-                var folder = Path.GetDirectoryName(dlg.FileName)!;
-                GamePathBox.Text = folder;
-                Info("Game folder set.");
-                await AutoValidateAsync();
+                int count = 0;
+                foreach (var mod in Mods.Where(m => !m.IsEnabled))
+                {
+                    ModService.Enable(mod);
+                    count++;
+                }
+                
                 RefreshMods();
+                Info($"Enabled {count} mod(s).");
+            }
+            catch (Exception ex)
+            {
+                Error("Failed to enable all mods: " + ex.Message);
+            }
+        }
+
+        private void DisableAllMods_Click(object sender, RoutedEventArgs e)
+        {
+            var root = GetCurrentGamePath();
+            if (string.IsNullOrWhiteSpace(root))
+            {
+                Warn("Select game folder first.");
+                return;
+            }
+
+            try
+            {
+                int count = 0;
+                foreach (var mod in Mods.Where(m => m.IsEnabled))
+                {
+                    ModService.Disable(mod);
+                    count++;
+                }
+                
+                RefreshMods();
+                Info($"Disabled {count} mod(s).");
+            }
+            catch (Exception ex)
+            {
+                Error("Failed to disable all mods: " + ex.Message);
             }
         }
 
         private void OpenPlugins_Click(object sender, RoutedEventArgs e)
         {
-            var root = GamePathBox.Text;
-            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
+            var root = GetCurrentGamePath();
+            if (string.IsNullOrWhiteSpace(root))
             {
-                Warn("Set a valid game folder first.");
+                Warn("Select game folder first.");
                 return;
             }
 
@@ -120,10 +451,10 @@ namespace ErenshorModInstaller.Wpf
 
         private void LaunchErenshor_Click(object sender, RoutedEventArgs e)
         {
-            var root = GamePathBox.Text;
-            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
+            var root = GetCurrentGamePath();
+            if (string.IsNullOrWhiteSpace(root))
             {
-                Warn("Set a valid game folder first.");
+                Warn("Select game folder first.");
                 return;
             }
 
@@ -163,15 +494,16 @@ namespace ErenshorModInstaller.Wpf
 
         private void Uninstall_Click(object sender, RoutedEventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(GamePathBox.Text))
+            var root = GetCurrentGamePath();
+            if (string.IsNullOrWhiteSpace(root))
             {
-                Warn("Set game folder first.");
+                Warn("Select game folder first.");
                 return;
             }
 
             if (ModsList.SelectedItem is ModItem item)
             {
-                if (ModService.Uninstall(GamePathBox.Text, item, this))
+                if (ModService.Uninstall(root, item, this))
                 {
                     RefreshMods();
                 }
@@ -267,7 +599,7 @@ namespace ErenshorModInstaller.Wpf
                 var item = lbi.DataContext as ModItem;
                 if (item == null) return;
 
-                var root = GamePathBox.Text;
+                var root = GetCurrentGamePath();
                 var alts = ModService.GetAlternateVersions(root, item);
                 if (alts == null || alts.Count == 0)
                 {
@@ -298,10 +630,10 @@ namespace ErenshorModInstaller.Wpf
 
         private async void InstallAny(string path)
         {
-            var root = GamePathBox.Text;
-            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
+            var root = GetCurrentGamePath();
+            if (string.IsNullOrWhiteSpace(root))
             {
-                Warn("Set a valid game folder first.");
+                Warn("Select game folder first.");
                 return;
             }
             
@@ -348,8 +680,8 @@ namespace ErenshorModInstaller.Wpf
             _isUpdatingList = true;
             Mods.Clear();
 
-            var root = GamePathBox.Text;
-            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) { _isUpdatingList = false; return; }
+            var root = GetCurrentGamePath();
+            if (string.IsNullOrWhiteSpace(root)) { _isUpdatingList = false; return; }
 
             var plugins = PathHelper.GetPluginsDir(root);
             if (!Directory.Exists(plugins))
@@ -371,8 +703,7 @@ namespace ErenshorModInstaller.Wpf
         {
             if (e.ChangedButton == MouseButton.Left)
             {
-                // Allow dragging the window by the custom title bar
-                try { DragMove(); } catch { /* ignore while maximizing */ }
+                try { DragMove(); } catch { }
             }
         }
 
@@ -385,5 +716,17 @@ namespace ErenshorModInstaller.Wpf
         {
             Close();
         }
+    }
+
+    /// <summary>
+    /// ComboBox item that displays label but stores the full path
+    /// </summary>
+    public class ComboBoxPathItem
+    {
+        public string Label { get; set; } = "";
+        public string Path { get; set; } = "";
+        public bool IsEnabled { get; set; } = true;
+
+        public override string ToString() => Label;
     }
 }
