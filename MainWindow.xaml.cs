@@ -67,13 +67,13 @@ namespace ErenshorModInstaller.Wpf
                 var detectedPath = TryAutoDetectErenshor();
                 if (!string.IsNullOrEmpty(detectedPath))
                 {
-                    // Save with "Steam" label
-                    AppDataManager.AddGameInstallPath(detectedPath, "Steam");
+                    // Save with "Live" label (default installation)
+                    AppDataManager.AddGameInstallPath(detectedPath, "Live");
                     Info("Auto-detected Erenshor via Steam.");
                 }
                 else
                 {
-                    Warn("Could not auto-detect Erenshor. Select your game folder from the dropdown.");
+                    Warn("Could not auto-detect Erenshor. Use the browse button to set the game folder.");
                 }
             }
 
@@ -117,64 +117,70 @@ namespace ErenshorModInstaller.Wpf
         }
 
         /// <summary>
-        /// Loads all game install paths into the ComboBox with their labels
+        /// Loads game install paths into the ComboBox with Live/Playtest structure
         /// </summary>
         private void LoadGamePathsIntoComboBox()
         {
             _isInitializing = true;
             GamePathComboBox.Items.Clear();
 
-            var entries = AppDataManager.GetGameInstallPathEntries();
+            var settings = AppDataManager.LoadSettings();
+            
+            // Get the paths for Live and Playtest
+            var livePath = settings.GameInstallPaths.FirstOrDefault(e => e.Label == "Live")?.Path;
+            var playtestPath = settings.GameInstallPaths.FirstOrDefault(e => e.Label == "Playtest")?.Path;
+            
+            // Determine which installation to select by default
             var currentPath = AppDataManager.GetGameInstallPath();
+            ComboBoxPathItem? itemToSelect = null;
 
-            if (entries.Count == 0)
+            // Always add Live and Playtest entries
+            var liveItem = new ComboBoxPathItem
             {
-                // No paths saved - add browse option
-                GamePathComboBox.Items.Add(new ComboBoxPathItem 
-                { 
-                    Label = "📁 Browse for game folder...",
-                    Path = ""
-                });
-                GamePathComboBox.SelectedIndex = 0;
-                _isInitializing = false;
-                return;
+                Label = string.IsNullOrEmpty(livePath) ? "Live (Not Set)" : "Live",
+                Path = livePath ?? "",
+                InstallType = InstallationType.Live
+            };
+            GamePathComboBox.Items.Add(liveItem);
+            
+            var playtestItem = new ComboBoxPathItem
+            {
+                Label = string.IsNullOrEmpty(playtestPath) ? "Playtest (Not Set)" : "Playtest",
+                Path = playtestPath ?? "",
+                InstallType = InstallationType.Playtest
+            };
+            GamePathComboBox.Items.Add(playtestItem);
+
+            // Determine which to select
+            if (!string.IsNullOrEmpty(currentPath))
+            {
+                // Select based on current path
+                if (string.Equals(currentPath, livePath, StringComparison.OrdinalIgnoreCase))
+                    itemToSelect = liveItem;
+                else if (string.Equals(currentPath, playtestPath, StringComparison.OrdinalIgnoreCase))
+                    itemToSelect = playtestItem;
             }
-
-            // Add all saved paths with labels
-            foreach (var entry in entries)
+            
+            // If still nothing selected and no paths are set, show "Erenshor Not Detected" in the selected item
+            if (itemToSelect == null)
             {
-                var item = new ComboBoxPathItem
+                if (string.IsNullOrEmpty(livePath) && string.IsNullOrEmpty(playtestPath))
                 {
-                    Label = entry.Label,
-                    Path = entry.Path
-                };
-                GamePathComboBox.Items.Add(item);
-
-                // Select the current primary path
-                if (string.Equals(entry.Path, currentPath, StringComparison.OrdinalIgnoreCase))
+                    // Show "Not Detected" as the selected display, but keep Live/Playtest in dropdown
+                    liveItem.Label = "Erenshor Not Detected";
+                    itemToSelect = liveItem;
+                }
+                else
                 {
-                    GamePathComboBox.SelectedItem = item;
+                    // Prefer Live if it exists, otherwise Playtest
+                    itemToSelect = !string.IsNullOrEmpty(livePath) ? liveItem : playtestItem;
                 }
             }
 
-            // Add separator and "Add New Path..." option at the end
-            GamePathComboBox.Items.Add(new ComboBoxPathItem 
-            { 
-                Label = "──────────────",
-                Path = "SEPARATOR",
-                IsEnabled = false
-            });
-            
-            GamePathComboBox.Items.Add(new ComboBoxPathItem 
-            { 
-                Label = "➕ Add New Path...",
-                Path = "ADD_NEW"
-            });
-
-            // If nothing selected, select first item
-            if (GamePathComboBox.SelectedItem == null && entries.Count > 0)
+            // Set selection
+            if (itemToSelect != null)
             {
-                GamePathComboBox.SelectedIndex = 0;
+                GamePathComboBox.SelectedItem = itemToSelect;
             }
             
             _isInitializing = false;
@@ -189,35 +195,24 @@ namespace ErenshorModInstaller.Wpf
             
             if (GamePathComboBox.SelectedItem is ComboBoxPathItem item)
             {
-                // Handle special items
-                if (item.Path == "ADD_NEW")
-                {
-                    BrowseForGamePath();
-                    return;
-                }
-                
-                if (item.Path == "SEPARATOR")
-                {
-                    // Reselect previous item
-                    if (e.RemovedItems.Count > 0)
-                    {
-                        GamePathComboBox.SelectedItem = e.RemovedItems[0];
-                    }
-                    return;
-                }
-
-                // Handle empty path (browse prompt)
+                // If path is not set for this installation type, just inform the user
                 if (string.IsNullOrEmpty(item.Path))
                 {
-                    BrowseForGamePath();
+                    var installTypeName = item.InstallType == InstallationType.Live ? "Live" : "Playtest";
+                    Info($"{installTypeName} path not set. Click the browse button (📁) to select the game folder.");
                     return;
                 }
 
                 // Valid path selected
                 if (Directory.Exists(item.Path))
                 {
-                    AppDataManager.SaveGameInstallPath(item.Path, item.Label);
-                    Info($"Using: {item.Label}");
+                    var label = item.InstallType == InstallationType.Live ? "Live" : "Playtest";
+                    AppDataManager.SaveGameInstallPath(item.Path, label);
+                    
+                    // Update the label to remove "Not Set" or "Not Detected" text
+                    item.Label = label;
+                    
+                    Info($"Using: {label}");
                     await AutoValidateAsync();
                     RefreshMods();
                 }
@@ -243,106 +238,77 @@ namespace ErenshorModInstaller.Wpf
             if (dialog.ShowDialog() == true)
             {
                 var exePath = dialog.FileName;
-                var gamePath = Path.GetDirectoryName(exePath);
+                var gameRoot = Path.GetDirectoryName(exePath);
 
-                if (!string.IsNullOrEmpty(gamePath) && IsValidErenshorInstall(gamePath))
+                if (string.IsNullOrEmpty(gameRoot))
                 {
-                    // Check if path already exists
-                    var entries = AppDataManager.GetGameInstallPathEntries();
-                    var existingEntry = entries.FirstOrDefault(e => 
-                        string.Equals(e.Path, gamePath, StringComparison.OrdinalIgnoreCase));
-
-                    if (existingEntry != null)
-                    {
-                        // Path already exists, just select it
-                        foreach (var comboItem in GamePathComboBox.Items)
-                        {
-                            if (comboItem is ComboBoxPathItem pathItem && 
-                                string.Equals(pathItem.Path, gamePath, StringComparison.OrdinalIgnoreCase))
-                            {
-                                GamePathComboBox.SelectedItem = comboItem;
-                                break;
-                            }
-                        }
-                        Info("Path already added.");
-                        return;
-                    }
-
-                    // Prompt for label
-                    var label = PromptForPathLabel();
-                    if (string.IsNullOrEmpty(label))
-                        label = "Custom";
-
-                    // Add the new path
-                    AppDataManager.AddGameInstallPath(gamePath, label);
-                    AppDataManager.SaveGameInstallPath(gamePath, label);
-
-                    // Reload the ComboBox
-                    LoadGamePathsIntoComboBox();
-                    
-                    // Select the newly added path
-                    foreach (var comboItem in GamePathComboBox.Items)
-                    {
-                        if (comboItem is ComboBoxPathItem pathItem && 
-                            string.Equals(pathItem.Path, gamePath, StringComparison.OrdinalIgnoreCase))
-                        {
-                            GamePathComboBox.SelectedItem = comboItem;
-                            break;
-                        }
-                    }
-
-                    Info($"Added: {label}");
+                    Error("Invalid game folder selected.");
+                    return;
                 }
-                else
-                {
-                    MessageBox.Show("Invalid Erenshor installation folder.", "Invalid Path", 
-                        MessageBoxButton.OK, MessageBoxImage.Warning);
-                    
-                    // Reselect previous item
-                    LoadGamePathsIntoComboBox();
-                }
-            }
-            else
-            {
-                // User cancelled - reselect previous item
+
+                // Ask user which installation type this is
+                var result = MessageBox.Show(
+                    "Is this the Live or Playtest version?\n\nClick Yes for Live, No for Playtest.",
+                    "Installation Type",
+                    MessageBoxButton.YesNoCancel,
+                    MessageBoxImage.Question);
+
+                if (result == MessageBoxResult.Cancel)
+                    return;
+
+                var label = result == MessageBoxResult.Yes ? "Live" : "Playtest";
+                
+                AppDataManager.AddGameInstallPath(gameRoot, label);
+                Info($"Added {label} installation: {gameRoot}");
+                
                 LoadGamePathsIntoComboBox();
             }
         }
 
         /// <summary>
-        /// Validates if a path contains a valid Erenshor installation
+        /// Handles browse button click from within the ComboBox dropdown
         /// </summary>
-        private bool IsValidErenshorInstall(string path)
+        private async void BrowseGamePath_Click(object sender, RoutedEventArgs e)
         {
-            if (string.IsNullOrEmpty(path) || !Directory.Exists(path))
-                return false;
+            // Stop the event from bubbling up to ComboBox
+            e.Handled = true;
 
-            // Check for Erenshor.exe
-            var exePath = Path.Combine(path, "Erenshor.exe");
-            if (!File.Exists(exePath))
-                return false;
-
-            // Check for Erenshor_Data folder
-            var dataFolder = Path.Combine(path, "Erenshor_Data");
-            if (!Directory.Exists(dataFolder))
-                return false;
-
-            return true;
-        }
-
-        /// <summary>
-        /// Prompts the user to enter a label for a game path
-        /// </summary>
-        private string PromptForPathLabel()
-        {
-            // Simple input dialog
-            var dialog = new InputDialog("Enter a label for this installation:", "Label Installation", "Custom");
-            if (dialog.ShowDialog() == true)
+            if (sender is Button button && button.Tag is ComboBoxPathItem item)
             {
-                return dialog.ResponseText?.Trim() ?? "Custom";
+                var dialog = new OpenFileDialog
+                {
+                    Title = $"Select Erenshor.exe for {item.InstallType}",
+                    Filter = "Erenshor Executable|Erenshor.exe",
+                    CheckFileExists = true
+                };
+
+                if (dialog.ShowDialog() == true)
+                {
+                    var exePath = dialog.FileName;
+                    var gameRoot = Path.GetDirectoryName(exePath);
+
+                    if (string.IsNullOrEmpty(gameRoot))
+                    {
+                        Error("Invalid game folder selected.");
+                        return;
+                    }
+
+                    var label = item.InstallType == InstallationType.Live ? "Live" : "Playtest";
+                    AppDataManager.AddGameInstallPath(gameRoot, label);
+                    AppDataManager.SaveGameInstallPath(gameRoot, label);
+                    Info($"Set {label} installation: {gameRoot}");
+                    
+                    // Reload and the new path will be selected automatically
+                    LoadGamePathsIntoComboBox();
+                    
+                    // Validate and refresh
+                    await AutoValidateAsync();
+                    RefreshMods();
+                }
+                
+                // Close the dropdown after dialog
+                GamePathComboBox.IsDropDownOpen = false;
             }
-            
-            return "Custom";
         }
 
         /// <summary>
@@ -352,12 +318,11 @@ namespace ErenshorModInstaller.Wpf
         {
             if (GamePathComboBox.SelectedItem is ComboBoxPathItem item && 
                 !string.IsNullOrEmpty(item.Path) && 
-                item.Path != "ADD_NEW" && 
-                item.Path != "SEPARATOR" &&
                 Directory.Exists(item.Path))
             {
                 return item.Path;
             }
+            
             return string.Empty;
         }
 
@@ -726,7 +691,23 @@ namespace ErenshorModInstaller.Wpf
         public string Label { get; set; } = "";
         public string Path { get; set; } = "";
         public bool IsEnabled { get; set; } = true;
+        public InstallationType InstallType { get; set; } = InstallationType.None;
+        
+        /// <summary>
+        /// Returns Visible for Live/Playtest entries, Collapsed for others
+        /// </summary>
+        public Visibility ShowBrowseButton => 
+            (InstallType == InstallationType.Live || InstallType == InstallationType.Playtest) 
+                ? Visibility.Visible 
+                : Visibility.Collapsed;
 
         public override string ToString() => Label;
+    }
+
+    public enum InstallationType
+    {
+        None,
+        Live,
+        Playtest
     }
 }

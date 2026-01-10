@@ -84,9 +84,44 @@
               <ComboBox x:Name="GamePathComboBox" 
                         Style="{StaticResource ModernComboBox}"
                         Margin="0,8,0,0"
+                        DisplayMemberPath="Label"
                         SelectionChanged="GamePathComboBox_SelectionChanged">
                 <ComboBox.ItemContainerStyle>
-                  <Style TargetType="ComboBoxItem" BasedOn="{StaticResource ModernComboBoxItem}"/>
+                  <Style TargetType="ComboBoxItem" BasedOn="{StaticResource ModernComboBoxItem}">
+                    <Setter Property="Template">
+                      <Setter.Value>
+                        <ControlTemplate TargetType="ComboBoxItem">
+                          <Border Background="{TemplateBinding Background}"
+                                  BorderBrush="{TemplateBinding BorderBrush}"
+                                  BorderThickness="{TemplateBinding BorderThickness}"
+                                  Padding="{TemplateBinding Padding}">
+                            <Grid>
+                              <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                              </Grid.ColumnDefinitions>
+                              
+                              <TextBlock Text="{Binding Label}" 
+                                         VerticalAlignment="Center"
+                                         Foreground="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=Foreground}"/>
+                              
+                              <!-- Browse button - only in dropdown -->
+                              <Button Grid.Column="1" 
+                                      Content="📁"
+                                      Margin="8,0,0,0"
+                                      Padding="6,2"
+                                      FontSize="12"
+                                      Style="{StaticResource SecondaryButton}"
+                                      Click="BrowseGamePath_Click"
+                                      Tag="{Binding}"
+                                      ToolTip="Browse for game folder"
+                                      Visibility="{Binding ShowBrowseButton}"/>
+                            </Grid>
+                          </Border>
+                        </ControlTemplate>
+                      </Setter.Value>
+                    </Setter>
+                  </Style>
                 </ComboBox.ItemContainerStyle>
               </ComboBox>
 
