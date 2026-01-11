@@ -296,7 +296,7 @@
                           </ControlTemplate>
                         </Button.Template>
                         <Image Source="/Assets/uninstall.png"
-                               Width="35" Height="35"
+                               Width="20" Height="20"
                                Stretch="Uniform"
                                RenderOptions.BitmapScalingMode="HighQuality"/>
                       </Button>
