@@ -1,11 +1,13 @@
 using Microsoft.Win32;
 using System;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -224,60 +226,15 @@ namespace ErenshorModInstaller.Wpf
         }
 
         /// <summary>
-        /// Opens a folder browser to select a new game installation path
+        /// Opens browse dialog for selecting game folder
         /// </summary>
-        private void BrowseForGamePath()
+        private void BrowseGamePath_Click(object sender, RoutedEventArgs e)
         {
-            var dialog = new OpenFileDialog
-            {
-                Title = "Select Erenshor.exe",
-                Filter = "Erenshor Executable|Erenshor.exe",
-                CheckFileExists = true
-            };
-
-            if (dialog.ShowDialog() == true)
-            {
-                var exePath = dialog.FileName;
-                var gameRoot = Path.GetDirectoryName(exePath);
-
-                if (string.IsNullOrEmpty(gameRoot))
-                {
-                    Error("Invalid game folder selected.");
-                    return;
-                }
-
-                // Ask user which installation type this is
-                var result = MessageBox.Show(
-                    "Is this the Live or Playtest version?\n\nClick Yes for Live, No for Playtest.",
-                    "Installation Type",
-                    MessageBoxButton.YesNoCancel,
-                    MessageBoxImage.Question);
-
-                if (result == MessageBoxResult.Cancel)
-                    return;
-
-                var label = result == MessageBoxResult.Yes ? "Live" : "Playtest";
-                
-                AppDataManager.AddGameInstallPath(gameRoot, label);
-                Info($"Added {label} installation: {gameRoot}");
-                
-                LoadGamePathsIntoComboBox();
-            }
-        }
-
-        /// <summary>
-        /// Handles browse button click from within the ComboBox dropdown
-        /// </summary>
-        private async void BrowseGamePath_Click(object sender, RoutedEventArgs e)
-        {
-            // Stop the event from bubbling up to ComboBox
-            e.Handled = true;
-
             if (sender is Button button && button.Tag is ComboBoxPathItem item)
             {
                 var dialog = new OpenFileDialog
                 {
-                    Title = $"Select Erenshor.exe for {item.InstallType}",
+                    Title = "Select Erenshor.exe",
                     Filter = "Erenshor Executable|Erenshor.exe",
                     CheckFileExists = true
                 };
@@ -285,108 +242,83 @@ namespace ErenshorModInstaller.Wpf
                 if (dialog.ShowDialog() == true)
                 {
                     var exePath = dialog.FileName;
-                    var gameRoot = Path.GetDirectoryName(exePath);
-
-                    if (string.IsNullOrEmpty(gameRoot))
+                    var selectedPath = Path.GetDirectoryName(exePath);
+                    
+                    if (string.IsNullOrEmpty(selectedPath))
                     {
                         Error("Invalid game folder selected.");
                         return;
                     }
 
+                    // Save the path
                     var label = item.InstallType == InstallationType.Live ? "Live" : "Playtest";
-                    AppDataManager.AddGameInstallPath(gameRoot, label);
-                    AppDataManager.SaveGameInstallPath(gameRoot, label);
-                    Info($"Set {label} installation: {gameRoot}");
+                    AppDataManager.AddGameInstallPath(selectedPath, label);
                     
-                    // Reload and the new path will be selected automatically
+                    // Reload the ComboBox
                     LoadGamePathsIntoComboBox();
                     
-                    // Validate and refresh
-                    await AutoValidateAsync();
-                    RefreshMods();
+                    Info($"Set {label} path: {selectedPath}");
                 }
-                
-                // Close the dropdown after dialog
-                GamePathComboBox.IsDropDownOpen = false;
             }
         }
 
-        /// <summary>
-        /// Gets the current game path from the ComboBox
-        /// </summary>
         private string GetCurrentGamePath()
         {
-            if (GamePathComboBox.SelectedItem is ComboBoxPathItem item && 
-                !string.IsNullOrEmpty(item.Path) && 
-                Directory.Exists(item.Path))
-            {
-                return item.Path;
-            }
-            
-            return string.Empty;
+            return AppDataManager.GetGameInstallPath();
         }
 
         private async Task AutoValidateAsync()
         {
             var root = GetCurrentGamePath();
-            if (!string.IsNullOrEmpty(root))
+            if (!string.IsNullOrWhiteSpace(root))
             {
                 await GameSetupService.ValidateAndFixAsync(root, this);
             }
         }
 
+        private void InstallZip_Click(object sender, RoutedEventArgs e)
+        {
+            var ofd = new OpenFileDialog
+            {
+                Filter = "Archives (*.zip;*.7z;*.rar)|*.zip;*.7z;*.rar|All Files (*.*)|*.*",
+                Title = "Select Mod Archive"
+            };
+            if (ofd.ShowDialog() == true)
+                InstallAny(ofd.FileName);
+        }
+
         private void EnableAllMods_Click(object sender, RoutedEventArgs e)
         {
-            var root = GetCurrentGamePath();
-            if (string.IsNullOrWhiteSpace(root))
-            {
-                Warn("Select game folder first.");
-                return;
-            }
-
             try
             {
-                int count = 0;
-                foreach (var mod in Mods.Where(m => !m.IsEnabled))
+                var root = GetCurrentGamePath();
+                if (string.IsNullOrWhiteSpace(root)) { Warn("Select game folder first."); return; }
+
+                foreach (var m in Mods.Where(m => !m.IsEnabled))
                 {
-                    ModService.Enable(mod);
-                    count++;
+                    ModService.Enable(m);
                 }
-                
-                RefreshMods();
-                Info($"Enabled {count} mod(s).");
+                Info("All mods enabled.");
             }
-            catch (Exception ex)
-            {
-                Error("Failed to enable all mods: " + ex.Message);
-            }
+            catch (Exception ex) { Error("Enable All failed: " + ex.Message); }
+            finally { RefreshMods(); }
         }
 
         private void DisableAllMods_Click(object sender, RoutedEventArgs e)
         {
-            var root = GetCurrentGamePath();
-            if (string.IsNullOrWhiteSpace(root))
-            {
-                Warn("Select game folder first.");
-                return;
-            }
-
             try
             {
-                int count = 0;
-                foreach (var mod in Mods.Where(m => m.IsEnabled))
+                var root = GetCurrentGamePath();
+                if (string.IsNullOrWhiteSpace(root)) { Warn("Select game folder first."); return; }
+
+                foreach (var m in Mods.Where(m => m.IsEnabled))
                 {
-                    ModService.Disable(mod);
-                    count++;
+                    ModService.Disable(m);
                 }
-                
-                RefreshMods();
-                Info($"Disabled {count} mod(s).");
+                Info("All mods disabled.");
             }
-            catch (Exception ex)
-            {
-                Error("Failed to disable all mods: " + ex.Message);
-            }
+            catch (Exception ex) { Error("Disable All failed: " + ex.Message); }
+            finally { RefreshMods(); }
         }
 
         private void OpenPlugins_Click(object sender, RoutedEventArgs e)
@@ -401,17 +333,18 @@ namespace ErenshorModInstaller.Wpf
             var plugins = PathHelper.GetPluginsDir(root);
             if (!Directory.Exists(plugins))
             {
-                Warn("BepInEx/plugins not found. Run Erenshor once after installing BepInEx.");
-                MessageBox.Show(
-                    "The folder BepInEx\\plugins does not exist yet.\n\n" +
-                    "Run Erenshor once after installing BepInEx so it can complete setup.",
-                    "Plugins folder missing",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
+                Warn("BepInEx/plugins not found.");
                 return;
             }
 
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = plugins, UseShellExecute = true });
+            try { System.Diagnostics.Process.Start("explorer.exe", plugins); }
+            catch (Exception ex) { Error("Open folder failed: " + ex.Message); }
+        }
+
+        private void RefreshMods_Click(object sender, RoutedEventArgs e)
+        {
+            RefreshMods();
+            Info("Mod list refreshed.");
         }
 
         private void LaunchErenshor_Click(object sender, RoutedEventArgs e)
@@ -423,8 +356,14 @@ namespace ErenshorModInstaller.Wpf
                 return;
             }
 
-            var exe = System.IO.Path.Combine(root, "Erenshor.exe");
-            if (File.Exists(exe))
+            var exe = Path.Combine(root, "Erenshor.exe");
+            if (!File.Exists(exe))
+            {
+                Warn("Erenshor.exe not found.");
+                return;
+            }
+
+            try
             {
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
@@ -432,81 +371,86 @@ namespace ErenshorModInstaller.Wpf
                     WorkingDirectory = root,
                     UseShellExecute = true
                 });
-                Info("Launching Erenshor…");
-                //Close();
+                Info("Launched Erenshor.");
             }
-            else
+            catch (Exception ex)
             {
-                Warn("Erenshor.exe not found in this folder.");
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = root, UseShellExecute = true });
+                Error("Launch failed: " + ex.Message);
             }
         }
 
-        private void InstallZip_Click(object sender, RoutedEventArgs e)
+        /// <summary>
+        /// Handles toggle button click - enables or disables the mod based on current state
+        /// </summary>
+        private void ModToggle_Click(object sender, RoutedEventArgs e)
         {
-            var ofd = new OpenFileDialog
+            if (_isUpdatingList) return;
+            
+            var button = sender as Button;
+            var item = button?.Tag as ModItem;
+            if (item == null) return;
+
+            try
             {
-                Title = "Choose a Mod archive",
-                Filter = "Archives|*.zip;*.7z;*.rar|Zip|*.zip|7-Zip|*.7z|RAR|*.rar|All files|*.*"
-            };
-            if (ofd.ShowDialog() == true)
+                if (item.IsEnabled)
+                {
+                    ModService.Disable(item);
+                    Info($"Disabled: {item.DisplayName}");
+                }
+                else
+                {
+                    ModService.Enable(item);
+                    Info($"Enabled: {item.DisplayName}");
+                }
+            }
+            catch (Exception ex)
             {
-                InstallAny(ofd.FileName);
+                Error($"Toggle failed: {ex.Message}");
+            }
+            finally
+            {
+                RefreshMods();
             }
         }
 
-        private void RefreshMods_Click(object sender, RoutedEventArgs e) => RefreshMods();
-
-        private void Uninstall_Click(object sender, RoutedEventArgs e)
+        /// <summary>
+        /// Handles uninstall button click for individual mods
+        /// </summary>
+        private void ModUninstall_Click(object sender, RoutedEventArgs e)
         {
-            var root = GetCurrentGamePath();
-            if (string.IsNullOrWhiteSpace(root))
-            {
-                Warn("Select game folder first.");
-                return;
-            }
+            if (_isUpdatingList) return;
 
-            if (ModsList.SelectedItem is ModItem item)
+            var button = sender as Button;
+            var item = button?.Tag as ModItem;
+            if (item == null) return;
+
+            var res = MessageBox.Show(
+                $"Are you sure you want to uninstall \"{item.DisplayName}\"?",
+                "Uninstall Mod",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (res != MessageBoxResult.Yes) return;
+
+            try
             {
+                var root = GetCurrentGamePath();
+                if (string.IsNullOrWhiteSpace(root))
+                {
+                    Warn("Select game folder first.");
+                    return;
+                }
+
                 if (ModService.Uninstall(root, item, this))
                 {
+                    Info($"Uninstalled: {item.DisplayName}");
                     RefreshMods();
                 }
             }
-            else
+            catch (Exception ex)
             {
-                Info("Select a mod to uninstall.");
+                Error("Uninstall failed: " + ex.Message);
             }
-        }
-
-        private void ModToggle_Checked(object sender, RoutedEventArgs e)
-        {
-            if (_isUpdatingList) return;
-            var item = (sender as FrameworkElement)?.DataContext as ModItem;
-            if (item == null) return;
-
-            try
-            {
-                ModService.Enable(item);
-                Info($"Enabled: {item.DisplayName}");
-            }
-            catch (Exception ex) { Error("Enable failed: " + ex.Message); }
-            finally { RefreshMods(); }
-        }
-
-        private void ModToggle_Unchecked(object sender, RoutedEventArgs e)
-        {
-            if (_isUpdatingList) return;
-            var item = (sender as FrameworkElement)?.DataContext as ModItem;
-            if (item == null) return;
-
-            try
-            {
-                ModService.Disable(item);
-                Info($"Disabled: {item.DisplayName}");
-            }
-            catch (Exception ex) { Error("Disable failed: " + ex.Message); }
-            finally { RefreshMods(); }
         }
 
         private void Window_DragOver(object sender, DragEventArgs e)
@@ -709,5 +653,25 @@ namespace ErenshorModInstaller.Wpf
         None,
         Live,
         Playtest
+    }
+
+    /// <summary>
+    /// Converter for button tooltip text based on mod enabled state
+    /// </summary>
+    public class BoolToToggleTextConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is bool isEnabled)
+            {
+                return isEnabled ? "Click to disable mod" : "Click to enable mod";
+            }
+            return "Toggle mod";
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

@@ -84,6 +84,8 @@
               <ComboBox x:Name="GamePathComboBox" 
                         Style="{StaticResource ModernComboBox}"
                         Margin="0,8,0,0"
+                        Height="Auto"
+                        MinHeight="36"
                         DisplayMemberPath="Label"
                         SelectionChanged="GamePathComboBox_SelectionChanged">
                 <ComboBox.ItemContainerStyle>
@@ -185,12 +187,7 @@
               <Button Content="🔄 Refresh List" 
                       Style="{StaticResource SecondaryButton}" 
                       HorizontalAlignment="Stretch"
-                      Margin="0,0,0,8"
                       Click="RefreshMods_Click"/>
-              <Button Content="🗑️ Uninstall Selected" 
-                      Style="{StaticResource SecondaryButton}" 
-                      HorizontalAlignment="Stretch"
-                      Click="Uninstall_Click"/>
             </StackPanel>
           </Border>
 
@@ -222,21 +219,15 @@
                   <DataTemplate>
                     <Grid>
                       <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                       </Grid.ColumnDefinitions>
 
-                      <CheckBox IsChecked="{Binding IsEnabled}"
-                                Style="{StaticResource ModernCheckBox}"
-                                Checked="ModToggle_Checked"
-                                Unchecked="ModToggle_Unchecked"
-                                VerticalAlignment="Center"/>
-
-                      <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                      <StackPanel Grid.Column="0">
                         <TextBlock Text="{Binding DisplayName}" 
                                    FontWeight="Medium"
-                                   FontSize="13"
+                                   FontSize="15"
                                    Foreground="{StaticResource TextPrimary}"
                                    ToolTip="{Binding Guid}"/>
                         <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
@@ -249,6 +240,66 @@
                                      FontSize="11"/>
                         </StackPanel>
                       </StackPanel>
+
+                      <!-- Toggle Button -->
+                      <Button Grid.Column="1"
+                              Tag="{Binding}"
+                              Click="ModToggle_Click"
+                              VerticalAlignment="Center"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              Padding="0,0,4,0"
+                              Margin="0,0,10,0"
+                              Width="Auto"
+                              Height="Auto">
+                        <Button.Template>
+                          <ControlTemplate TargetType="Button">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                            VerticalAlignment="Center"/>
+                          </ControlTemplate>
+                        </Button.Template>
+                        <Button.ToolTip>
+                          <ToolTip>
+                            <TextBlock>
+                              <Run Text="{Binding IsEnabled, Mode=OneWay, Converter={StaticResource BoolToToggleTextConverter}}"/>
+                            </TextBlock>
+                          </ToolTip>
+                        </Button.ToolTip>
+                        <Image Width="32" Height="32"
+                               Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality">
+                          <Image.Style>
+                            <Style TargetType="Image">
+                              <Setter Property="Source" Value="/Assets/moddisabled.png"/>
+                              <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsEnabled}" Value="True">
+                                  <Setter Property="Source" Value="/Assets/modenabled.png"/>
+                                </DataTrigger>
+                              </Style.Triggers>
+                            </Style>
+                          </Image.Style>
+                        </Image>
+                      </Button>
+
+                      <!-- Uninstall Button -->
+                      <Button Grid.Column="2"
+                              Tag="{Binding}"
+                              Click="ModUninstall_Click"
+                              VerticalAlignment="Center"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              ToolTip="Uninstall mod">
+                        <Button.Template>
+                          <ControlTemplate TargetType="Button">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                            VerticalAlignment="Center"/>
+                          </ControlTemplate>
+                        </Button.Template>
+                        <Image Source="/Assets/uninstall.png"
+                               Width="35" Height="35"
+                               Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"/>
+                      </Button>
                     </Grid>
                   </DataTemplate>
                 </ListBox.ItemTemplate>
