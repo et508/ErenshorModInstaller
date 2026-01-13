@@ -16,7 +16,7 @@
 
   <wc:WindowChrome.WindowChrome>
     <wc:WindowChrome
-        CaptionHeight="0"
+        CaptionHeight="32"
         CornerRadius="16"
         GlassFrameThickness="1"
         ResizeBorderThickness="8"
@@ -31,297 +31,302 @@
 
     <Grid>
       <Grid.RowDefinitions>
-        <RowDefinition Height="48"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="16"/>
         <RowDefinition Height="*"/>
+        <RowDefinition Height="20"/>
+        <RowDefinition Height="Auto"/>
       </Grid.RowDefinitions>
 
-      <!-- Title Bar -->
-      <Border Grid.Row="0" Background="{StaticResource CardBg}" CornerRadius="0,0,0,0" BorderThickness="0,0,0,1" BorderBrush="{StaticResource BorderColor}"
-              MouseDown="TitleBar_MouseDown">
-        <Grid wc:WindowChrome.IsHitTestVisibleInChrome="True">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition/>
-            <ColumnDefinition Width="Auto"/>
-          </Grid.ColumnDefinitions>
+      <!-- Compact Header -->
+      <Grid Grid.Row="0" Height="32" wc:WindowChrome.IsHitTestVisibleInChrome="True">
+        <!-- Draggable background area -->
+        <Border Background="Transparent" MouseDown="TitleBar_MouseDown"/>
+        
+        <!-- Title on the left -->
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="12,0,0,0">
+          <Image Source="/Assets/appicon.ico" Width="18" Height="18" Margin="0,0,8,0" 
+                 RenderOptions.BitmapScalingMode="HighQuality"/>
+          <TextBlock Text="Erenshor Mod Manager" FontSize="13" FontWeight="SemiBold" 
+                     Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center"/>
+          <TextBlock Text="{Binding AppVersion}" FontSize="11" 
+                     Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="8,0,0,0"/>
+        </StackPanel>
 
-          <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
-            <Image Source="/Assets/appicon.ico" Width="20" Height="20" Margin="0,0,8,0" 
+        <!-- Window Controls in the corner -->
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
+          <Button Style="{StaticResource TitleBarButton}" 
+                  Click="Minimize_Click" 
+                  ToolTip="Minimize">
+            <Image Source="/Assets/minimize.png"
+                   Width="15" Height="15"
+                   Stretch="Uniform"
                    RenderOptions.BitmapScalingMode="HighQuality"/>
-            <TextBlock Text="Erenshor Mod Manager" FontSize="13" FontWeight="SemiBold" 
-                       Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center"/>
-            <TextBlock Text="{Binding AppVersion}" FontSize="11" 
-                       Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="8,0,0,0"/>
-          </StackPanel>
+          </Button>
+          <Button Style="{StaticResource CloseButton}" 
+                  Click="Close_Click" 
+                  ToolTip="Close">
+            <Image Source="/Assets/close.png"
+                   Width="15" Height="15"
+                   Stretch="Uniform"
+                   RenderOptions.BitmapScalingMode="HighQuality"/>
+          </Button>
+        </StackPanel>
+      </Grid>
 
-          <StackPanel Grid.Column="1" Orientation="Horizontal">
-            <Button Style="{StaticResource TitleBarButton}" Content="―" Click="Minimize_Click" ToolTip="Minimize"/>
-            <Button Style="{StaticResource CloseButton}" Content="✕" Click="Close_Click" ToolTip="Close"/>
-          </StackPanel>
-        </Grid>
-      </Border>
+      <!-- Main Content Area -->
+      <Grid Grid.Row="2" Margin="24,0,24,0">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="280"/>
+          <ColumnDefinition Width="20"/>
+          <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
 
-      <!-- Main Content -->
-      <Grid Grid.Row="1" Margin="24,24,24,24">
-        <Grid.RowDefinitions>
-          <RowDefinition Height="*"/>
-          <RowDefinition Height="20"/>
-          <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
+        <!-- Sidebar Actions -->
+        <Border Grid.Column="0" Background="{StaticResource SidebarBg}" CornerRadius="12" Padding="20" BorderThickness="1" BorderBrush="{StaticResource BorderColor}">
+          <StackPanel>
+            <!-- Game Selection -->
+            <TextBlock Text="Game Installation" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
+            <ComboBox x:Name="GamePathComboBox" 
+                      Style="{StaticResource ModernComboBox}"
+                      Margin="0,8,0,0"
+                      Height="Auto"
+                      MinHeight="36"
+                      DisplayMemberPath="Label"
+                      SelectionChanged="GamePathComboBox_SelectionChanged">
+              <ComboBox.ItemContainerStyle>
+                <Style TargetType="ComboBoxItem" BasedOn="{StaticResource ModernComboBoxItem}">
+                  <Setter Property="Template">
+                    <Setter.Value>
+                      <ControlTemplate TargetType="ComboBoxItem">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                          <Grid>
+                            <Grid.ColumnDefinitions>
+                              <ColumnDefinition Width="*"/>
+                              <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <TextBlock Text="{Binding Label}" 
+                                       VerticalAlignment="Center"
+                                       Foreground="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=Foreground}"/>
+                            
+                            <!-- Browse button - only in dropdown -->
+                            <Button Grid.Column="1" 
+                                    Content="📁"
+                                    Margin="8,0,0,0"
+                                    Padding="6,2"
+                                    FontSize="12"
+                                    Style="{StaticResource SecondaryButton}"
+                                    Click="BrowseGamePath_Click"
+                                    Tag="{Binding}"
+                                    ToolTip="Browse for game folder"
+                                    Visibility="{Binding ShowBrowseButton}"/>
+                          </Grid>
+                        </Border>
+                      </ControlTemplate>
+                    </Setter.Value>
+                  </Setter>
+                </Style>
+              </ComboBox.ItemContainerStyle>
+            </ComboBox>
 
-        <!-- Main Content Area -->
-        <Grid Grid.Row="0">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="280"/>
-            <ColumnDefinition Width="20"/>
-            <ColumnDefinition Width="*"/>
-          </Grid.ColumnDefinitions>
+            <!-- Divider -->
+            <Border Height="1" Background="{StaticResource BorderColor}" Margin="0,20,0,20"/>
 
-          <!-- Sidebar Actions -->
-          <Border Grid.Column="0" Background="{StaticResource SidebarBg}" CornerRadius="12" Padding="20" BorderThickness="1" BorderBrush="{StaticResource BorderColor}">
-            <StackPanel>
-              <!-- Game Selection -->
-              <TextBlock Text="Game Installation" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
-              <ComboBox x:Name="GamePathComboBox" 
-                        Style="{StaticResource ModernComboBox}"
-                        Margin="0,8,0,0"
-                        Height="Auto"
-                        MinHeight="36"
-                        DisplayMemberPath="Label"
-                        SelectionChanged="GamePathComboBox_SelectionChanged">
-                <ComboBox.ItemContainerStyle>
-                  <Style TargetType="ComboBoxItem" BasedOn="{StaticResource ModernComboBoxItem}">
-                    <Setter Property="Template">
-                      <Setter.Value>
-                        <ControlTemplate TargetType="ComboBoxItem">
-                          <Border Background="{TemplateBinding Background}"
-                                  BorderBrush="{TemplateBinding BorderBrush}"
-                                  BorderThickness="{TemplateBinding BorderThickness}"
-                                  Padding="{TemplateBinding Padding}">
-                            <Grid>
-                              <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                              </Grid.ColumnDefinitions>
-                              
-                              <TextBlock Text="{Binding Label}" 
-                                         VerticalAlignment="Center"
-                                         Foreground="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=Foreground}"/>
-                              
-                              <!-- Browse button - only in dropdown -->
-                              <Button Grid.Column="1" 
-                                      Content="📁"
-                                      Margin="8,0,0,0"
-                                      Padding="6,2"
-                                      FontSize="12"
-                                      Style="{StaticResource SecondaryButton}"
-                                      Click="BrowseGamePath_Click"
-                                      Tag="{Binding}"
-                                      ToolTip="Browse for game folder"
-                                      Visibility="{Binding ShowBrowseButton}"/>
-                            </Grid>
-                          </Border>
-                        </ControlTemplate>
-                      </Setter.Value>
-                    </Setter>
-                  </Style>
-                </ComboBox.ItemContainerStyle>
-              </ComboBox>
-
-              <!-- Divider -->
-              <Border Height="1" Background="{StaticResource BorderColor}" Margin="0,20,0,20"/>
-
-              <!-- Global Mod Control -->
-              <TextBlock Text="Global Control" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
-              <TextBlock Text="Enable or disable all mods" 
-                         TextWrapping="Wrap" 
-                         Foreground="{StaticResource TextSecondary}"
-                         FontSize="12"
-                         Margin="0,6,0,12"/>
+            <!-- Global Mod Control -->
+            <TextBlock Text="Global Control" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
+            <TextBlock Text="Enable or disable all mods" 
+                       TextWrapping="Wrap" 
+                       Foreground="{StaticResource TextSecondary}"
+                       FontSize="12"
+                       Margin="0,6,0,12"/>
+            
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
               
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*"/>
-                  <ColumnDefinition Width="8"/>
-                  <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                
-                <Button x:Name="EnableAllButton" 
-                        Content="✓ ON" 
-                        Style="{StaticResource SecondaryButton}"
-                        Click="EnableAllMods_Click"
-                        ToolTip="Enable all mods"/>
-                
-                <Button x:Name="DisableAllButton"
-                        Grid.Column="2"
-                        Content="✕ OFF" 
-                        Style="{StaticResource SecondaryButton}"
-                        Click="DisableAllMods_Click"
-                        ToolTip="Disable all mods"/>
-              </Grid>
-
-              <!-- Divider -->
-              <Border Height="1" Background="{StaticResource BorderColor}" Margin="0,20,0,20"/>
-
-              <!-- Install Section -->
-              <TextBlock Text="Install Mod" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
-              <TextBlock Text="Drop a .zip file anywhere in this window" 
-                         TextWrapping="Wrap" 
-                         Foreground="{StaticResource TextSecondary}"
-                         FontSize="12"
-                         Margin="0,8,0,16"/>
-              <Button Content="📦 Choose File" 
-                      Style="{StaticResource PrimaryButton}" 
-                      HorizontalAlignment="Stretch"
-                      Click="InstallZip_Click"/>
-
-              <!-- Divider -->
-              <Border Height="1" Background="{StaticResource BorderColor}" Margin="0,24,0,24"/>
-
-              <!-- Manage Section -->
-              <TextBlock Text="Manage" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" Margin="0,0,0,16"/>
-              <Button Content="Open Plugins" 
-                      Style="{StaticResource SecondaryButton}" 
-                      HorizontalAlignment="Stretch"
-                      Margin="0,0,0,8"
-                      Click="OpenPlugins_Click"/>
-              <Button Content="🔄 Refresh List" 
-                      Style="{StaticResource SecondaryButton}" 
-                      HorizontalAlignment="Stretch"
-                      Click="RefreshMods_Click"/>
-            </StackPanel>
-          </Border>
-
-          <!-- Mods List -->
-          <Border Grid.Column="2" Background="{StaticResource CardBg}" CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource BorderColor}">
-            <Grid Margin="20">
-              <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="8"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="16"/>
-                <RowDefinition Height="*"/>
-              </Grid.RowDefinitions>
-
-              <TextBlock Text="Installed Mods" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
+              <Button x:Name="EnableAllButton" 
+                      Content="✓ ON" 
+                      Style="{StaticResource SecondaryButton}"
+                      Click="EnableAllMods_Click"
+                      ToolTip="Enable all mods"/>
               
-              <TextBlock x:Name="StatusBlock" Grid.Row="2" Foreground="{StaticResource TextSecondary}" FontSize="12" TextWrapping="Wrap"/>
-
-              <ListBox x:Name="ModsList" Grid.Row="4"
-                       Style="{StaticResource ModernListBox}"
-                       ItemsSource="{Binding Mods}"
-                       PreviewMouseRightButtonDown="ModsList_PreviewMouseRightButtonDown"
-                       ScrollViewer.VerticalScrollBarVisibility="Auto"
-                       ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                <ListBox.ItemContainerStyle>
-                  <Style TargetType="ListBoxItem" BasedOn="{StaticResource ModernListBoxItem}"/>
-                </ListBox.ItemContainerStyle>
-                <ListBox.ItemTemplate>
-                  <DataTemplate>
-                    <Grid>
-                      <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                      </Grid.ColumnDefinitions>
-
-                      <StackPanel Grid.Column="0">
-                        <TextBlock Text="{Binding DisplayName}" 
-                                   FontWeight="Medium"
-                                   FontSize="15"
-                                   Foreground="{StaticResource TextPrimary}"
-                                   ToolTip="{Binding Guid}"/>
-                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                          <TextBlock Text="{Binding StatusSuffix}" 
-                                     Foreground="{StaticResource TextMuted}"
-                                     FontSize="11"
-                                     Margin="0,0,8,0"/>
-                          <TextBlock Text="{Binding Version}" 
-                                     Foreground="{StaticResource TextMuted}"
-                                     FontSize="11"/>
-                        </StackPanel>
-                      </StackPanel>
-
-                      <!-- Toggle Button -->
-                      <Button Grid.Column="1"
-                              Tag="{Binding}"
-                              Click="ModToggle_Click"
-                              VerticalAlignment="Center"
-                              Background="Transparent"
-                              BorderThickness="0"
-                              Padding="0,0,4,0"
-                              Margin="0,0,10,0"
-                              Width="Auto"
-                              Height="Auto">
-                        <Button.Template>
-                          <ControlTemplate TargetType="Button">
-                            <ContentPresenter HorizontalAlignment="Center" 
-                                            VerticalAlignment="Center"/>
-                          </ControlTemplate>
-                        </Button.Template>
-                        <Button.ToolTip>
-                          <ToolTip>
-                            <TextBlock>
-                              <Run Text="{Binding IsEnabled, Mode=OneWay, Converter={StaticResource BoolToToggleTextConverter}}"/>
-                            </TextBlock>
-                          </ToolTip>
-                        </Button.ToolTip>
-                        <Image Width="32" Height="32"
-                               Stretch="Uniform"
-                               RenderOptions.BitmapScalingMode="HighQuality">
-                          <Image.Style>
-                            <Style TargetType="Image">
-                              <Setter Property="Source" Value="/Assets/moddisabled.png"/>
-                              <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsEnabled}" Value="True">
-                                  <Setter Property="Source" Value="/Assets/modenabled.png"/>
-                                </DataTrigger>
-                              </Style.Triggers>
-                            </Style>
-                          </Image.Style>
-                        </Image>
-                      </Button>
-
-                      <!-- Uninstall Button -->
-                      <Button Grid.Column="2"
-                              Tag="{Binding}"
-                              Click="ModUninstall_Click"
-                              VerticalAlignment="Center"
-                              Background="Transparent"
-                              BorderThickness="0"
-                              ToolTip="Uninstall mod">
-                        <Button.Template>
-                          <ControlTemplate TargetType="Button">
-                            <ContentPresenter HorizontalAlignment="Center" 
-                                            VerticalAlignment="Center"/>
-                          </ControlTemplate>
-                        </Button.Template>
-                        <Image Source="/Assets/uninstall.png"
-                               Width="20" Height="20"
-                               Stretch="Uniform"
-                               RenderOptions.BitmapScalingMode="HighQuality"/>
-                      </Button>
-                    </Grid>
-                  </DataTemplate>
-                </ListBox.ItemTemplate>
-              </ListBox>
+              <Button x:Name="DisableAllButton"
+                      Grid.Column="2"
+                      Content="✕ OFF" 
+                      Style="{StaticResource SecondaryButton}"
+                      Click="DisableAllMods_Click"
+                      ToolTip="Disable all mods"/>
             </Grid>
-          </Border>
-        </Grid>
 
-        <!-- Bottom Bar -->
-        <Grid Grid.Row="2">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="Auto"/>
-          </Grid.ColumnDefinitions>
-          
-          <Button Grid.Column="1" 
-                  Content="🚀 Launch Erenshor" 
-                  Style="{StaticResource PrimaryButton}"
-                  Padding="24,12"
-                  FontSize="14"
-                  Click="LaunchErenshor_Click"/>
-        </Grid>
+            <!-- Divider -->
+            <Border Height="1" Background="{StaticResource BorderColor}" Margin="0,20,0,20"/>
+
+            <!-- Install Mod -->
+            <TextBlock Text="Install Mod" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
+            <TextBlock Text="Drop a .zip file anywhere in this window" 
+                       TextWrapping="Wrap" 
+                       Foreground="{StaticResource TextSecondary}"
+                       FontSize="12"
+                       Margin="0,8,0,16"/>
+            <Button Content="📦 Choose File" 
+                    Style="{StaticResource PrimaryButton}" 
+                    HorizontalAlignment="Stretch"
+                    Click="InstallZip_Click"/>
+
+            <!-- Divider -->
+            <Border Height="1" Background="{StaticResource BorderColor}" Margin="0,24,0,24"/>
+
+            <!-- Manage Section -->
+            <TextBlock Text="Manage" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" Margin="0,0,0,16"/>
+            <Button Content="Open Plugins" 
+                    Style="{StaticResource SecondaryButton}" 
+                    HorizontalAlignment="Stretch"
+                    Margin="0,0,0,8"
+                    Click="OpenPlugins_Click"/>
+            <Button Content="🔄 Refresh List" 
+                    Style="{StaticResource SecondaryButton}" 
+                    HorizontalAlignment="Stretch"
+                    Click="RefreshMods_Click"/>
+          </StackPanel>
+        </Border>
+
+        <!-- Mods List -->
+        <Border Grid.Column="2" Background="{StaticResource CardBg}" CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource BorderColor}">
+          <Grid Margin="20">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="8"/>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="16"/>
+              <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <TextBlock Text="Installed Mods" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
+            
+            <TextBlock x:Name="StatusBlock" Grid.Row="2" Foreground="{StaticResource TextSecondary}" FontSize="12" TextWrapping="Wrap"/>
+
+            <ListBox x:Name="ModsList" Grid.Row="4"
+                     Style="{StaticResource ModernListBox}"
+                     ItemsSource="{Binding Mods}"
+                     PreviewMouseRightButtonDown="ModsList_PreviewMouseRightButtonDown"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+              <ListBox.ItemContainerStyle>
+                <Style TargetType="ListBoxItem" BasedOn="{StaticResource ModernListBoxItem}"/>
+              </ListBox.ItemContainerStyle>
+              <ListBox.ItemTemplate>
+                <DataTemplate>
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*"/>
+                      <ColumnDefinition Width="Auto"/>
+                      <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                      <TextBlock Text="{Binding DisplayName}" 
+                                 FontWeight="Medium"
+                                 FontSize="15"
+                                 Foreground="{StaticResource TextPrimary}"
+                                 ToolTip="{Binding Guid}"/>
+                      <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                        <TextBlock Text="{Binding StatusSuffix}" 
+                                   Foreground="{StaticResource TextMuted}"
+                                   FontSize="11"
+                                   Margin="0,0,8,0"/>
+                        <TextBlock Text="{Binding Version}" 
+                                   Foreground="{StaticResource TextMuted}"
+                                   FontSize="11"/>
+                      </StackPanel>
+                    </StackPanel>
+
+                    <!-- Toggle Button -->
+                    <Button Grid.Column="1"
+                            Tag="{Binding}"
+                            Click="ModToggle_Click"
+                            VerticalAlignment="Center"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Padding="0,0,4,0"
+                            Margin="0,0,10,0"
+                            Width="Auto"
+                            Height="Auto">
+                      <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                          <ContentPresenter HorizontalAlignment="Center" 
+                                          VerticalAlignment="Center"/>
+                        </ControlTemplate>
+                      </Button.Template>
+                      <Button.ToolTip>
+                        <ToolTip>
+                          <TextBlock>
+                            <Run Text="{Binding IsEnabled, Mode=OneWay, Converter={StaticResource BoolToToggleTextConverter}}"/>
+                          </TextBlock>
+                        </ToolTip>
+                      </Button.ToolTip>
+                      <Image Width="32" Height="32"
+                             Stretch="Uniform"
+                             RenderOptions.BitmapScalingMode="HighQuality">
+                        <Image.Style>
+                          <Style TargetType="Image">
+                            <Setter Property="Source" Value="/Assets/moddisabled.png"/>
+                            <Style.Triggers>
+                              <DataTrigger Binding="{Binding IsEnabled}" Value="True">
+                                <Setter Property="Source" Value="/Assets/modenabled.png"/>
+                              </DataTrigger>
+                            </Style.Triggers>
+                          </Style>
+                        </Image.Style>
+                      </Image>
+                    </Button>
+
+                    <!-- Uninstall Button -->
+                    <Button Grid.Column="2"
+                            Tag="{Binding}"
+                            Click="ModUninstall_Click"
+                            VerticalAlignment="Center"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            ToolTip="Uninstall mod">
+                      <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                          <ContentPresenter HorizontalAlignment="Center" 
+                                          VerticalAlignment="Center"/>
+                        </ControlTemplate>
+                      </Button.Template>
+                      <Image Source="/Assets/uninstall.png"
+                             Width="20" Height="20"
+                             Stretch="Uniform"
+                             RenderOptions.BitmapScalingMode="HighQuality"/>
+                    </Button>
+                  </Grid>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </Grid>
+        </Border>
+      </Grid>
+
+      <!-- Bottom Bar -->
+      <Grid Grid.Row="4" Margin="24,0,24,10">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        
+        <Button Grid.Column="1" 
+                Content="🚀 Launch Erenshor" 
+                Style="{StaticResource PrimaryButton}"
+                Padding="24,12"
+                FontSize="14"
+                Click="LaunchErenshor_Click"/>
       </Grid>
     </Grid>
   </Border>

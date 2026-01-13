@@ -141,24 +141,27 @@
         </Setter>
     </Style>
 
-    <!-- Title Bar Button -->
+    <!-- Title Bar Button (Image as Content) -->
     <Style x:Key="TitleBarButton" TargetType="Button">
-        <Setter Property="Width" Value="46"/>
+        <Setter Property="Width" Value="32"/>
         <Setter Property="Height" Value="32"/>
         <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
         <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="b" Background="{TemplateBinding Background}"
+                    <Border x:Name="b" 
+                            Background="{TemplateBinding Background}"
                             wc:WindowChrome.IsHitTestVisibleInChrome="True">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <ContentPresenter HorizontalAlignment="Center" 
+                                        VerticalAlignment="Center"
+                                        x:Name="content"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="b" Property="Background" Value="#252933"/>
+                            <Setter TargetName="content" Property="Opacity" Value="1.0"/>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="b" Property="Background" Value="#1A1D23"/>
@@ -167,53 +170,49 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
-    </Style>
-
-    <!-- Close Button -->
-    <Style x:Key="CloseButton" TargetType="Button" BasedOn="{StaticResource TitleBarButton}">
+        <Setter Property="Opacity" Value="0.7"/>
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{StaticResource DangerColor}"/>
-                <Setter Property="Foreground" Value="White"/>
+                <Setter Property="Opacity" Value="1.0"/>
             </Trigger>
         </Style.Triggers>
     </Style>
 
-    <!-- ============================================ -->
-    <!-- TEXTBOX STYLE -->
-    <!-- ============================================ -->
-    <Style x:Key="ModernTextBox" TargetType="TextBox">
-        <Setter Property="Background" Value="{StaticResource CardBg}"/>
-        <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource BorderColor}"/>
-        <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="Padding" Value="12,8"/>
-        <Setter Property="FontSize" Value="13"/>
+    <!-- Close Button (Image as Content with red hover) -->
+    <Style x:Key="CloseButton" TargetType="Button">
+        <Setter Property="Width" Value="32"/>
+        <Setter Property="Height" Value="32"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
-                <ControlTemplate TargetType="TextBox">
-                    <Border x:Name="border"
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="b" 
                             Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="8"
-                            Padding="{TemplateBinding Padding}">
-                        <ScrollViewer x:Name="PART_ContentHost"
-                                      Focusable="False"
-                                      HorizontalScrollBarVisibility="Hidden"
-                                      VerticalScrollBarVisibility="Hidden"/>
+                            wc:WindowChrome.IsHitTestVisibleInChrome="True">
+                        <ContentPresenter HorizontalAlignment="Center" 
+                                        VerticalAlignment="Center"
+                                        x:Name="content"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource AccentHover}"/>
+                            <Setter TargetName="b" Property="Background" Value="{StaticResource DangerColor}"/>
+                            <Setter TargetName="content" Property="Opacity" Value="1.0"/>
                         </Trigger>
-                        <Trigger Property="IsFocused" Value="True">
-                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource AccentPrimary}"/>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="b" Property="Background" Value="#DC2626"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+        <Setter Property="Opacity" Value="0.7"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Opacity" Value="1.0"/>
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <!-- ============================================ -->
@@ -230,58 +229,54 @@
             <Setter.Value>
                 <ControlTemplate TargetType="ComboBox">
                     <Grid>
-                        <ToggleButton x:Name="ToggleButton"
-                                      Grid.Column="2"
-                                      Focusable="False"
-                                      IsChecked="{Binding Path=IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
-                                      ClickMode="Press"
-                                      Background="{TemplateBinding Background}"
-                                      BorderBrush="{TemplateBinding BorderBrush}"
-                                      BorderThickness="{TemplateBinding BorderThickness}">
-                            <ToggleButton.Template>
-                                <ControlTemplate TargetType="ToggleButton">
-                                    <Border x:Name="border"
-                                            Background="{TemplateBinding Background}"
-                                            BorderBrush="{TemplateBinding BorderBrush}"
-                                            BorderThickness="{TemplateBinding BorderThickness}"
-                                            CornerRadius="8">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock x:Name="ContentSite"
-                                                       IsHitTestVisible="False"
-                                                       Text="{Binding Path=SelectionBoxItem, RelativeSource={RelativeSource AncestorType=ComboBox}}"
-                                                       VerticalAlignment="Center"
-                                                       HorizontalAlignment="Left"
-                                                       Foreground="{StaticResource TextPrimary}"
-                                                       Margin="12,8"/>
-                                            <Path x:Name="Arrow"
-                                                  Grid.Column="1"
-                                                  HorizontalAlignment="Center"
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                
+                                <!-- Full-width ToggleButton behind everything -->
+                                <ToggleButton Grid.Column="0" Grid.ColumnSpan="2"
+                                              Focusable="False"
+                                              IsChecked="{Binding Path=IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                              ClickMode="Press">
+                                    <ToggleButton.Template>
+                                        <ControlTemplate TargetType="ToggleButton">
+                                            <Border Background="Transparent"/>
+                                        </ControlTemplate>
+                                    </ToggleButton.Template>
+                                </ToggleButton>
+                                
+                                <!-- Content on top (not clickable) -->
+                                <ContentPresenter Grid.Column="0"
+                                                  Content="{TemplateBinding SelectionBoxItem}"
+                                                  ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                  Margin="{TemplateBinding Padding}"
                                                   VerticalAlignment="Center"
-                                                  Margin="0,0,12,0"
-                                                  Data="M 0 0 L 4 4 L 8 0"
-                                                  Fill="{StaticResource TextSecondary}"/>
-                                        </Grid>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource AccentHover}"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </ToggleButton.Template>
-                        </ToggleButton>
-                        <Popup x:Name="Popup"
-                               Placement="Bottom"
-                               IsOpen="{TemplateBinding IsDropDownOpen}"
+                                                  HorizontalAlignment="Left"
+                                                  IsHitTestVisible="False"/>
+                                
+                                <!-- Arrow icon on top (not clickable) -->
+                                <Path Grid.Column="1"
+                                      Data="M 0 0 L 4 4 L 8 0 Z"
+                                      Fill="{StaticResource TextSecondary}"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,12,0"
+                                      IsHitTestVisible="False"/>
+                            </Grid>
+                        </Border>
+                        <Popup x:Name="PART_Popup"
                                AllowsTransparency="True"
-                               Focusable="False"
+                               IsOpen="{TemplateBinding IsDropDownOpen}"
+                               Placement="Bottom"
                                PopupAnimation="Slide">
-                            <Border x:Name="DropDownBorder"
-                                    Background="{StaticResource CardBg}"
+                            <Border Background="{StaticResource CardBg}"
                                     BorderBrush="{StaticResource BorderColor}"
                                     BorderThickness="1"
                                     CornerRadius="8"
@@ -289,17 +284,20 @@
                                     MinWidth="{TemplateBinding ActualWidth}"
                                     MaxHeight="300">
                                 <Border.Effect>
-                                    <DropShadowEffect Color="Black" BlurRadius="15" ShadowDepth="0" Opacity="0.5"/>
+                                    <DropShadowEffect Color="Black" BlurRadius="20" ShadowDepth="0" Opacity="0.6"/>
                                 </Border.Effect>
-                                <ScrollViewer Margin="4" SnapsToDevicePixels="True">
-                                    <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                <ScrollViewer MaxHeight="300">
+                                    <ItemsPresenter/>
                                 </ScrollViewer>
                             </Border>
                         </Popup>
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="ToggleButton" Property="BorderBrush" Value="{StaticResource AccentHover}"/>
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource AccentHover}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="border" Property="Opacity" Value="0.5"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -307,11 +305,11 @@
         </Setter>
     </Style>
 
-    <!-- ComboBoxItem Style -->
     <Style x:Key="ModernComboBoxItem" TargetType="ComboBoxItem">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
         <Setter Property="Padding" Value="12,8"/>
+        <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ComboBoxItem">
@@ -321,54 +319,8 @@
                         <ContentPresenter/>
                     </Border>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="border" Property="Background" Value="{StaticResource CardBgHover}"/>
-                        </Trigger>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter TargetName="border" Property="Background" Value="#252933"/>
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
-    <!-- ============================================ -->
-    <!-- CHECKBOX STYLE -->
-    <!-- ============================================ -->
-    <Style x:Key="ModernCheckBox" TargetType="CheckBox">
-        <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="CheckBox">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Border x:Name="checkBorder"
-                                Width="18" Height="18"
-                                Background="{StaticResource CardBg}"
-                                BorderBrush="{StaticResource BorderColor}"
-                                BorderThickness="2"
-                                CornerRadius="4">
-                            <Path x:Name="checkMark"
-                                  Data="M 0 5 L 4 9 L 10 1"
-                                  Stroke="{StaticResource TextPrimary}"
-                                  StrokeThickness="2"
-                                  Visibility="Collapsed"
-                                  Margin="2"/>
-                        </Border>
-                        <ContentPresenter Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"/>
-                    </Grid>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="checkMark" Property="Visibility" Value="Visible"/>
-                            <Setter TargetName="checkBorder" Property="Background" Value="{StaticResource AccentPrimary}"/>
-                            <Setter TargetName="checkBorder" Property="BorderBrush" Value="{StaticResource AccentPrimary}"/>
-                        </Trigger>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="checkBorder" Property="BorderBrush" Value="{StaticResource AccentHover}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -382,32 +334,21 @@
     
     <!-- ScrollBar Thumb (the draggable part) -->
     <Style x:Key="ScrollBarThumb" TargetType="{x:Type Thumb}">
+        <Setter Property="Background" Value="{StaticResource BorderColor}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type Thumb}">
-                    <Border x:Name="thumb"
-                            Background="{StaticResource BorderColor}"
-                            CornerRadius="4"
-                            Margin="2"/>
+                    <Border x:Name="thumbBorder"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="4"/>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="thumb" Property="Background" Value="{StaticResource TextMuted}"/>
+                            <Setter TargetName="thumbBorder" Property="Background" Value="{StaticResource TextMuted}"/>
                         </Trigger>
                         <Trigger Property="IsDragging" Value="True">
-                            <Setter TargetName="thumb" Property="Background" Value="{StaticResource AccentHover}"/>
+                            <Setter TargetName="thumbBorder" Property="Background" Value="{StaticResource TextSecondary}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
-    <!-- ScrollBar Buttons (arrows - we'll hide them) -->
-    <Style x:Key="ScrollBarButton" TargetType="{x:Type RepeatButton}">
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="{x:Type RepeatButton}">
-                    <Border Height="0" Width="0"/>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
