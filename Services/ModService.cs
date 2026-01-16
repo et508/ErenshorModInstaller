@@ -406,14 +406,12 @@ namespace ErenshorModInstaller.Wpf.Services
                 if (scan != null && !string.IsNullOrWhiteSpace(scan.Guid))
                 {
                     var installedFiles = new List<string>();
-    
-                    // Determine what files were installed
+                    
                     if (!string.IsNullOrWhiteSpace(result.PrimaryDll) && File.Exists(result.PrimaryDll))
                     {
                         installedFiles.Add(PathHelper.RelativeToGame(root, result.PrimaryDll));
                     }
-    
-                    // If it's a folder installation, add all files in the folder
+                    
                     if (Directory.Exists(result.TargetDir))
                     {
                         var plugins = PathHelper.GetPluginsDir(root);
@@ -718,15 +716,7 @@ namespace ErenshorModInstaller.Wpf.Services
         {
             return ListInstalledMods(root).FirstOrDefault(m => string.Equals(m.Guid, guid, StringComparison.OrdinalIgnoreCase));
         }
-
-
-
         
-
-
-        
-        
-
         private static AlternateVersion? FindStoredChoice(string root, ModItem item, string version)
         {
             return GetAlternateVersions(root, item).FirstOrDefault(a =>

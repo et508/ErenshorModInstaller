@@ -6,10 +6,6 @@ using System.Text.Json;
 
 namespace ErenshorModInstaller.Wpf.Services
 {
-    /// <summary>
-    /// Manages application data storage in %AppData%\ErenshorModInstaller
-    /// Handles settings.json, ModIndex.json, and other persistent files
-    /// </summary>
     public static class AppDataManager
     {
         private static readonly string AppDataFolder = Path.Combine(
@@ -19,27 +15,17 @@ namespace ErenshorModInstaller.Wpf.Services
 
         private static readonly string SettingsFilePath = Path.Combine(AppDataFolder, "settings.json");
         private static readonly string ModIndexFileName = "ModIndex.json";
-
-        // JSON serialization options
+        
         private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
         {
             WriteIndented = true,
             PropertyNameCaseInsensitive = true
         };
-
-        /// <summary>
-        /// Gets the full path to the ErenshorModInstaller AppData folder
-        /// </summary>
+        
         public static string GetAppDataFolder() => AppDataFolder;
-
-        /// <summary>
-        /// Gets the full path to the ModIndex.json file location
-        /// </summary>
+        
         public static string GetModIndexPath() => Path.Combine(AppDataFolder, ModIndexFileName);
-
-        /// <summary>
-        /// Ensures the AppData folder exists (does NOT create default files to avoid recursion)
-        /// </summary>
+        
         public static void EnsureAppDataFolder()
         {
             try
@@ -76,10 +62,7 @@ namespace ErenshorModInstaller.Wpf.Services
                 System.Diagnostics.Debug.WriteLine($"Failed to create default settings: {ex.Message}");
             }
         }
-
-        /// <summary>
-        /// Loads all settings from settings.json
-        /// </summary>
+        
         public static AppSettings LoadSettings()
         {
             EnsureAppDataFolder();
@@ -105,10 +88,7 @@ namespace ErenshorModInstaller.Wpf.Services
 
             return new AppSettings();
         }
-
-        /// <summary>
-        /// Saves all settings to settings.json
-        /// </summary>
+        
         public static void SaveSettings(AppSettings settings)
         {
             EnsureAppDataFolder();
@@ -124,25 +104,18 @@ namespace ErenshorModInstaller.Wpf.Services
                 System.Diagnostics.Debug.WriteLine($"Failed to save settings: {ex.Message}");
             }
         }
-
-        /// <summary>
-        /// Gets the saved game install path (primary path)
-        /// </summary>
+        
         public static string GetGameInstallPath()
         {
             var settings = LoadSettings();
             return settings.GameInstallPath ?? "";
         }
-
-        /// <summary>
-        /// Saves the game install path (primary path)
-        /// </summary>
+        
         public static void SaveGameInstallPath(string path, string label = "Custom")
         {
             var settings = LoadSettings();
             settings.GameInstallPath = path;
             
-            // Add to paths list if not already there
             if (!string.IsNullOrWhiteSpace(path))
             {
                 var existingEntry = settings.GameInstallPaths.FirstOrDefault(p => 
@@ -161,16 +134,12 @@ namespace ErenshorModInstaller.Wpf.Services
             
             SaveSettings(settings);
         }
-
-        /// <summary>
-        /// Gets all saved game install path entries with labels
-        /// </summary>
+        
         public static List<GameInstallPathEntry> GetGameInstallPathEntries()
         {
             var settings = LoadSettings();
             var entries = new List<GameInstallPathEntry>();
-
-            // Return all entries that have valid paths
+            
             foreach (var entry in settings.GameInstallPaths)
             {
                 if (!string.IsNullOrEmpty(entry.Path) && Directory.Exists(entry.Path))
@@ -181,37 +150,28 @@ namespace ErenshorModInstaller.Wpf.Services
 
             return entries;
         }
-
-        /// <summary>
-        /// Gets all saved game install paths (just the paths, no labels)
-        /// </summary>
+        
         public static List<string> GetGameInstallPaths()
         {
             return GetGameInstallPathEntries().Select(e => e.Path).ToList();
         }
-
-        /// <summary>
-        /// Adds a game install path to the saved paths with a label
-        /// </summary>
+        
         public static void AddGameInstallPath(string path, string label = "Custom")
         {
             if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
                 return;
 
             var settings = LoadSettings();
-
-            // Check if path already exists
+            
             var existingEntry = settings.GameInstallPaths.FirstOrDefault(p => 
                 string.Equals(p.Path, path, StringComparison.OrdinalIgnoreCase));
 
             if (existingEntry != null)
             {
-                // Update existing entry's label
                 existingEntry.Label = label;
             }
             else
             {
-                // Add new entry
                 settings.GameInstallPaths.Add(new GameInstallPathEntry
                 {
                     Path = path,
@@ -219,8 +179,7 @@ namespace ErenshorModInstaller.Wpf.Services
                     AddedDate = DateTime.UtcNow
                 });
             }
-
-            // If no primary path set, make this the primary
+            
             if (string.IsNullOrEmpty(settings.GameInstallPath))
             {
                 settings.GameInstallPath = path;
@@ -228,10 +187,7 @@ namespace ErenshorModInstaller.Wpf.Services
 
             SaveSettings(settings);
         }
-
-        /// <summary>
-        /// Updates the label for an existing game install path
-        /// </summary>
+        
         public static void UpdatePathLabel(string path, string newLabel)
         {
             if (string.IsNullOrWhiteSpace(path))
@@ -247,22 +203,17 @@ namespace ErenshorModInstaller.Wpf.Services
                 SaveSettings(settings);
             }
         }
-
-        /// <summary>
-        /// Removes a game install path from saved paths
-        /// </summary>
+        
         public static void RemoveGameInstallPath(string path)
         {
             if (string.IsNullOrWhiteSpace(path))
                 return;
 
             var settings = LoadSettings();
-
-            // Remove from paths list
+            
             settings.GameInstallPaths.RemoveAll(p => 
                 string.Equals(p.Path, path, StringComparison.OrdinalIgnoreCase));
-
-            // If this was the primary path, set a new primary from the list
+            
             if (string.Equals(settings.GameInstallPath, path, StringComparison.OrdinalIgnoreCase))
             {
                 settings.GameInstallPath = settings.GameInstallPaths.Count > 0 
@@ -272,10 +223,7 @@ namespace ErenshorModInstaller.Wpf.Services
 
             SaveSettings(settings);
         }
-
-        /// <summary>
-        /// Clears all settings (for testing or reset functionality)
-        /// </summary>
+        
         public static void ClearAllSettings()
         {
             try
@@ -291,11 +239,21 @@ namespace ErenshorModInstaller.Wpf.Services
                 System.Diagnostics.Debug.WriteLine($"Failed to clear settings: {ex.Message}");
             }
         }
+        
+        public static string? GetActiveProfileId()
+        {
+            var settings = LoadSettings();
+            return settings.ActiveProfileId;
+        }
+        
+        public static void SetActiveProfileId(string? profileId)
+        {
+            var settings = LoadSettings();
+            settings.ActiveProfileId = profileId;
+            SaveSettings(settings);
+        }
     }
-
-    /// <summary>
-    /// Application settings model
-    /// </summary>
+    
     public class AppSettings
     {
         public string GameInstallPath { get; set; } = "";
@@ -303,11 +261,10 @@ namespace ErenshorModInstaller.Wpf.Services
         public string LastUsedVersion { get; set; } = "";
         public bool AutoDetectOnStartup { get; set; } = true;
         public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
+        
+        public string? ActiveProfileId { get; set; } = null;
     }
-
-    /// <summary>
-    /// Represents a game install path with a user-friendly label
-    /// </summary>
+    
     public class GameInstallPathEntry
     {
         public string Path { get; set; } = "";
