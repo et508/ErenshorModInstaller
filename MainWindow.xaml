@@ -168,6 +168,78 @@
             <!-- Divider -->
             <Border Height="1" Background="{StaticResource BorderColor}" Margin="0,20,0,20"/>
 
+
+            <!-- Mod Profiles -->
+            <TextBlock Text="Mod Profiles" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
+            <TextBlock Text="Save and load mod configurations" 
+                       TextWrapping="Wrap" 
+                       Foreground="{StaticResource TextSecondary}"
+                       FontSize="12"
+                       Margin="0,6,0,12"/>
+            
+            <!-- Profile Selector -->
+            <ComboBox x:Name="ProfileComboBox"
+                      Style="{StaticResource ModernComboBox}"
+                      Margin="0,0,0,8"
+                      Height="Auto"
+                      MinHeight="36"
+                      DisplayMemberPath="Name"
+                      SelectionChanged="ProfileComboBox_SelectionChanged">
+              <ComboBox.ItemContainerStyle>
+                <Style TargetType="ComboBoxItem" BasedOn="{StaticResource ModernComboBoxItem}">
+                  <Setter Property="Template">
+                    <Setter.Value>
+                      <ControlTemplate TargetType="ComboBoxItem">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                          <Grid>
+                            <Grid.ColumnDefinitions>
+                              <ColumnDefinition Width="*"/>
+                              <ColumnDefinition Width="Auto"/>
+                              <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <TextBlock Text="{Binding Name}" 
+                                       VerticalAlignment="Center"
+                                       Foreground="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=Foreground}"/>
+                            
+                            <!-- Rename button - only show for actual profiles, not "No Profile" -->
+                            <Button Grid.Column="1" 
+                                    Content="✎"
+                                    Margin="8,0,4,0"
+                                    Padding="6,2"
+                                    FontSize="12"
+                                    Style="{StaticResource SecondaryButton}"
+                                    Click="RenameProfile_Click"
+                                    Tag="{Binding}"
+                                    ToolTip="Rename profile"
+                                    Visibility="{Binding ShowButtons}"/>
+                            
+                            <!-- Delete button - only show for actual profiles, not "No Profile" -->
+                            <Button Grid.Column="2" 
+                                    Content="✕"
+                                    Margin="0,0,0,0"
+                                    Padding="6,2"
+                                    FontSize="12"
+                                    Style="{StaticResource SecondaryButton}"
+                                    Click="DeleteProfile_Click"
+                                    Tag="{Binding}"
+                                    ToolTip="Delete profile"
+                                    Visibility="{Binding ShowButtons}"/>
+                          </Grid>
+                        </Border>
+                      </ControlTemplate>
+                    </Setter.Value>
+                  </Setter>
+                </Style>
+              </ComboBox.ItemContainerStyle>
+            </ComboBox>
+            
+            <!-- Divider -->
+            <Border Height="1" Background="{StaticResource BorderColor}" Margin="0,24,0,24"/>
+
             <!-- Install Mod -->
             <TextBlock Text="Install Mod" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
             <TextBlock Text="Drop a .zip file anywhere in this window" 
