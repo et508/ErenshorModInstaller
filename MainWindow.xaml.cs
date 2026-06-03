@@ -25,6 +25,7 @@ namespace ErenshorModInstaller.Wpf
         private bool _isUpdatingList;
         private bool _isInitializing = true;
         private bool _isLoadingProfile = false; // Prevents profile from being cleared when loading
+        private HashSet<string> _modsEnabledBeforeGlobalDisable = new HashSet<string>(); // Track which mods were on before global disable
 
         public MainWindow()
         {
@@ -296,13 +297,27 @@ namespace ErenshorModInstaller.Wpf
                 var root = GetCurrentGamePath();
                 if (string.IsNullOrWhiteSpace(root)) { Warn("Select game folder first."); return; }
 
-                foreach (var m in Mods.Where(m => !m.IsEnabled))
+                // If we have a saved state, restore only those mods
+                if (_modsEnabledBeforeGlobalDisable.Count > 0)
                 {
-                    ModService.Enable(m);
+                    foreach (var m in Mods.Where(m => !m.IsEnabled && _modsEnabledBeforeGlobalDisable.Contains(m.Guid)))
+                    {
+                        ModService.Enable(m);
+                    }
+                    _modsEnabledBeforeGlobalDisable.Clear();
+                    Info("Mods restored.");
                 }
-                Info("All mods enabled.");
+                else
+                {
+                    // No saved state, enable all mods
+                    foreach (var m in Mods.Where(m => !m.IsEnabled))
+                    {
+                        ModService.Enable(m);
+                    }
+                    Info("All mods enabled.");
+                }
             }
-            catch (Exception ex) { Error("Enable All failed: " + ex.Message); }
+            catch (Exception ex) { Error("Enable mods failed: " + ex.Message); }
             finally { RefreshMods(); }
         }
 
@@ -313,13 +328,16 @@ namespace ErenshorModInstaller.Wpf
                 var root = GetCurrentGamePath();
                 if (string.IsNullOrWhiteSpace(root)) { Warn("Select game folder first."); return; }
 
+                // Save which mods are currently enabled before disabling
+                _modsEnabledBeforeGlobalDisable.Clear();
                 foreach (var m in Mods.Where(m => m.IsEnabled))
                 {
+                    _modsEnabledBeforeGlobalDisable.Add(m.Guid);
                     ModService.Disable(m);
                 }
-                Info("All mods disabled.");
+                Info("All mods disabled. Use ON to restore.");
             }
-            catch (Exception ex) { Error("Disable All failed: " + ex.Message); }
+            catch (Exception ex) { Error("Disable mods failed: " + ex.Message); }
             finally { RefreshMods(); }
         }
 
@@ -656,16 +674,7 @@ namespace ErenshorModInstaller.Wpf
         {
             ProfileComboBox.Items.Clear();
             
-            // Add "Default Profile" option
-            var defaultProfileItem = new ProfileComboBoxItem
-            {
-                Id = null,
-                Name = "Default Profile",
-                IsNoProfile = true
-            };
-            ProfileComboBox.Items.Add(defaultProfileItem);
-            
-            // Add "Save Current Profile..." option
+            // Add "Save Current Profile..." option first
             var saveNewItem = new ProfileComboBoxItem
             {
                 Id = null,
@@ -687,11 +696,7 @@ namespace ErenshorModInstaller.Wpf
                 });
             }
 
-            // Select "Default Profile" by default if nothing is active
-            if (string.IsNullOrEmpty(AppDataManager.GetActiveProfileId()))
-            {
-                ProfileComboBox.SelectedIndex = 0;
-            }
+            // Don't select anything by default - let placeholder show
         }
 
         /// <summary>
@@ -699,11 +704,18 @@ namespace ErenshorModInstaller.Wpf
         /// </summary>
         private void SelectProfileInComboBox(string? profileId)
         {
+            // If null, deselect to show placeholder
+            if (profileId == null)
+            {
+                ProfileComboBox.SelectedIndex = -1;
+                return;
+            }
+            
             for (int i = 0; i < ProfileComboBox.Items.Count; i++)
             {
                 if (ProfileComboBox.Items[i] is ProfileComboBoxItem item)
                 {
-                    if ((profileId == null && item.IsNoProfile) || item.Id == profileId)
+                    if (item.Id == profileId)
                     {
                         ProfileComboBox.SelectedIndex = i;
                         return;
@@ -719,6 +731,9 @@ namespace ErenshorModInstaller.Wpf
         {
             if (_isInitializing || _isLoadingProfile) return;
 
+            // Toggle placeholder visibility
+            ProfilePlaceholder.Visibility = ProfileComboBox.SelectedIndex == -1 ? Visibility.Visible : Visibility.Collapsed;
+
             if (ProfileComboBox.SelectedItem is ProfileComboBoxItem item)
             {
                 // Handle "Save Current Profile..." option
@@ -726,21 +741,15 @@ namespace ErenshorModInstaller.Wpf
                 {
                     // Trigger save dialog
                     SaveProfile_Click(sender, e);
-                    // Revert selection to active profile or default
+                    // Revert selection to active profile or no selection
                     var activeId = AppDataManager.GetActiveProfileId();
                     SelectProfileInComboBox(activeId);
                     return;
                 }
                 
-                if (item.IsNoProfile)
+                // Load the selected profile
+                if (!string.IsNullOrEmpty(item.Id))
                 {
-                    // Clear active profile
-                    AppDataManager.SetActiveProfileId(null);
-                    Info("Switched to: Default Profile");
-                }
-                else if (!string.IsNullOrEmpty(item.Id))
-                {
-                    // Load the selected profile
                     var profile = ProfileManager.GetProfile(item.Id);
                     if (profile != null)
                     {

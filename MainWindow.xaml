@@ -47,7 +47,7 @@
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="12,0,0,0">
           <Image Source="/Assets/appicon.ico" Width="18" Height="18" Margin="0,0,8,0" 
                  RenderOptions.BitmapScalingMode="HighQuality"/>
-          <TextBlock Text="Erenshor Mod Manager" FontSize="13" FontWeight="SemiBold" 
+          <TextBlock Text="Erenshor Mod Installer" FontSize="13" FontWeight="SemiBold" 
                      Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center"/>
           <TextBlock Text="{Binding AppVersion}" FontSize="11" 
                      Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="8,0,0,0"/>
@@ -131,20 +131,10 @@
                   </Setter>
                 </Style>
               </ComboBox.ItemContainerStyle>
-            </ComboBox>
-
-            <!-- Divider -->
-            <Border Height="1" Background="{StaticResource BorderColor}" Margin="0,20,0,20"/>
-
-            <!-- Global Mod Control -->
-            <TextBlock Text="Global Control" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
-            <TextBlock Text="Enable or disable all mods" 
-                       TextWrapping="Wrap" 
-                       Foreground="{StaticResource TextSecondary}"
-                       FontSize="12"
-                       Margin="0,6,0,12"/>
+              </ComboBox>
             
-            <Grid>
+            <!-- Global Mod Control -->
+            <Grid Margin="0,6,0,6">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="8"/>
@@ -152,39 +142,34 @@
               </Grid.ColumnDefinitions>
               
               <Button x:Name="EnableAllButton" 
-                      Content="✓ ON" 
+                      Content="✓ Mods On" 
                       Style="{StaticResource SecondaryButton}"
                       Click="EnableAllMods_Click"
-                      ToolTip="Enable all mods"/>
+                      ToolTip="Restore mods (play modded)"/>
               
               <Button x:Name="DisableAllButton"
                       Grid.Column="2"
-                      Content="✕ OFF" 
+                      Content="✕ Mods Off" 
                       Style="{StaticResource SecondaryButton}"
                       Click="DisableAllMods_Click"
-                      ToolTip="Disable all mods"/>
+                      ToolTip="Disable all mods (play vanilla)"/>
             </Grid>
 
             <!-- Divider -->
-            <Border Height="1" Background="{StaticResource BorderColor}" Margin="0,20,0,20"/>
+            <Border Height="1" Background="{StaticResource BorderColor}" Margin="0,10,0,10"/>
 
 
             <!-- Mod Profiles -->
-            <TextBlock Text="Mod Profiles" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
-            <TextBlock Text="Save and load mod configurations" 
-                       TextWrapping="Wrap" 
-                       Foreground="{StaticResource TextSecondary}"
-                       FontSize="12"
-                       Margin="0,6,0,12"/>
+            <TextBlock Text="Mod Profiles" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" Margin="0,6,0,6"/>
             
-            <!-- Profile Selector -->
-            <ComboBox x:Name="ProfileComboBox"
-                      Style="{StaticResource ModernComboBox}"
-                      Margin="0,0,0,8"
-                      Height="Auto"
-                      MinHeight="36"
-                      DisplayMemberPath="Name"
-                      SelectionChanged="ProfileComboBox_SelectionChanged">
+            <!-- Profile Selector with Placeholder -->
+            <Grid Margin="0,0,0,8">
+              <ComboBox x:Name="ProfileComboBox"
+                        Style="{StaticResource ModernComboBox}"
+                        Height="Auto"
+                        MinHeight="36"
+                        DisplayMemberPath="Name"
+                        SelectionChanged="ProfileComboBox_SelectionChanged">
               <ComboBox.ItemContainerStyle>
                 <Style TargetType="ComboBoxItem" BasedOn="{StaticResource ModernComboBoxItem}">
                   <Setter Property="Template">
@@ -235,10 +220,21 @@
                   </Setter>
                 </Style>
               </ComboBox.ItemContainerStyle>
-            </ComboBox>
+              </ComboBox>
+              
+              <!-- Placeholder Text (shows when nothing selected) -->
+              <TextBlock x:Name="ProfilePlaceholder"
+                         Text="Default Profile"
+                         Foreground="{StaticResource TextSecondary}"
+                         FontSize="13"
+                         Margin="12,0,0,0"
+                         VerticalAlignment="Center"
+                         IsHitTestVisible="False"
+                         Visibility="Visible"/>
+            </Grid>
             
             <!-- Divider -->
-            <Border Height="1" Background="{StaticResource BorderColor}" Margin="0,24,0,24"/>
+            <Border Height="1" Background="{StaticResource BorderColor}" Margin="0,10,0,10"/>
 
             <!-- Install Mod -->
             <TextBlock Text="Install Mod" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
@@ -253,7 +249,7 @@
                     Click="InstallZip_Click"/>
 
             <!-- Divider -->
-            <Border Height="1" Background="{StaticResource BorderColor}" Margin="0,24,0,24"/>
+            <Border Height="1" Background="{StaticResource BorderColor}" Margin="0,10,0,10"/>
 
             <!-- Manage Section -->
             <TextBlock Text="Manage" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" Margin="0,0,0,16"/>
